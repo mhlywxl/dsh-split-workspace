@@ -1,0 +1,92 @@
+{
+  "name": "dsh-split-workspace",
+  "version": "0.4.0",
+  "type": "module",
+  "description": "Split-screen workspace for DeepSeek Harness (DSH) Desktop: unlimited native panes, side-by-side, stacked and 2×2 grid layouts, drag to rearrange.",
+  "icon": "./icon.svg",
+  "license": "MIT",
+  "author": "mhlywxl",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mhlywxl/dsh-split-workspace.git"
+  },
+  "homepage": "https://github.com/mhlywxl/dsh-split-workspace#readme",
+  "bugs": {
+    "url": "https://github.com/mhlywxl/dsh-split-workspace/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "docs/screenshots/*.png",
+    "docs/screenshots/*.gif",
+    "README.md",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek",
+    "deepseek-harness",
+    "dsh-desktop",
+    "split-screen",
+    "split-view",
+    "split-pane",
+    "multi-pane",
+    "multi-session",
+    "panes",
+    "workspace",
+    "layout",
+    "grid",
+    "tiling",
+    "desktop",
+    "分屏",
+    "多窗格",
+    "多会话",
+    "多窗口",
+    "田字布局"
+  ],
+  "peerDependencies": {
+    "react": "^18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "test": "node test.mjs",
+    "check": "node --check lib/client.js && node test.mjs",
+    "pack:check": "npm pack --dry-run"
+  }
+}

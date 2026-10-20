@@ -1,0 +1,142 @@
+name: release
+
+# Manual run: verify -> publish to npm -> GitHub Release.
+#
+# The push trigger is intentionally off for the first release, before the
+# NPM_TOKEN repository secret exists. After the first successful run, either
+# keep triggering manually or add:
+#
+#   push:
+#     branches: [main]
+#
+# Every step is idempotent: a version already on the registry is not published
+# again, and an existing release is left alone.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: client bundle syntax
+        run: node --check lib/client.js
+      - name: offline checks
+        run: node test.mjs
+      - name: npm package contents
+        run: npm pack --dry-run
+
+  publish:
+    name: publish npm
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      published: ${{ steps.npm.outputs.published }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: read package metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          version="$(node --input-type=module -e 'import { readFileSync } from "node:fs"; process.stdout.write(JSON.parse(readFileSync("package.json", "utf8")).version)')"
+          repository="$(node --input-type=module -e 'import { readFileSync } from "node:fs"; const r = JSON.parse(readFileSync("package.json", "utf8")).repository; process.stdout.write(typeof r === "string" ? r : (r && r.url) || "")')"
+          {
+            echo "version=${version}"
+            echo "repository=${repository}"
+          } >> "$GITHUB_OUTPUT"
+      - name: package.json repository field
+        env:
+          REPO_URL: ${{ steps.meta.outputs.repository }}
+          REPO_SLUG: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -z "$REPO_URL" ]; then
+            echo "::error::package.json has no repository field. Add it before publishing."
+            exit 1
+          fi
+          normalized="${REPO_URL#git+}"
+          normalized="${normalized#ssh://git@github.com/}"
+          normalized="${normalized#https://github.com/}"
+          normalized="${normalized%.git}"
+          normalized="${normalized%/}"
+          if [ "$normalized" != "$REPO_SLUG" ]; then
+            echo "::error::package.json repository is '$REPO_URL' but this workflow runs for '$REPO_SLUG'."
+            exit 1
+          fi
+      - name: publish to npm
+        id: npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          pkg="$(node --input-type=module -e 'import { readFileSync } from "node:fs"; process.stdout.write(JSON.parse(readFileSync("package.json", "utf8")).name)')"
+          version="$(node --input-type=module -e 'import { readFileSync } from "node:fs"; process.stdout.write(JSON.parse(readFileSync("package.json", "utf8")).version)')"
+          if npm view "${pkg}@${version}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## npm"
+              echo
+              echo "\`${pkg}@${version}\` is already on the registry - nothing was published."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ -z "${NODE_AUTH_TOKEN:-}" ] && [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "::error::Neither NPM_TOKEN nor npm trusted publishing (OIDC) is available. Add the NPM_TOKEN repository secret, then re-run this workflow."
+            exit 1
+          fi
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::warning::NPM_TOKEN is not set; falling back to npm trusted publishing (OIDC)."
+          fi
+          npm publish --provenance --access public --registry=https://registry.npmjs.org
+          echo "published=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "## npm"
+            echo
+            echo "Published \`${pkg}@${version}\`."
+            echo
+            echo "<https://www.npmjs.com/package/${pkg}>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: github release
+    needs: publish
+    if: needs.publish.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: tag and release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.publish.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::notice::${tag} already has a release."
+            exit 0
+          fi
+          gh release create "$tag" --title "$tag" --generate-notes --target "$GITHUB_SHA"

@@ -1,0 +1,6 @@
+# dsh-split-workspace profile patch: mounts the split workspace as a normal
+# Loader row. The host half is an empty loader entry; the browser half runs the
+# split shell in the top page and re-hosts each pane's native conversation.
+- insert:
+    - id: split-workspace
+      name: 'dsh-split-workspace'
