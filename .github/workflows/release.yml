@@ -48,7 +48,7 @@ jobs:
       id-token: write
     outputs:
       version: ${{ steps.meta.outputs.version }}
-      published: ${{ steps.npm.outputs.published }}
+      live: ${{ steps.npm.outputs.live }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -93,7 +93,7 @@ jobs:
           pkg="$(node --input-type=module -e 'import { readFileSync } from "node:fs"; process.stdout.write(JSON.parse(readFileSync("package.json", "utf8")).name)')"
           version="$(node --input-type=module -e 'import { readFileSync } from "node:fs"; process.stdout.write(JSON.parse(readFileSync("package.json", "utf8")).version)')"
           if npm view "${pkg}@${version}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
-            echo "published=false" >> "$GITHUB_OUTPUT"
+            echo "live=true" >> "$GITHUB_OUTPUT"
             {
               echo "## npm"
               echo
@@ -109,7 +109,25 @@ jobs:
             echo "::warning::NPM_TOKEN is not set; falling back to npm trusted publishing (OIDC)."
           fi
           npm publish --provenance --access public --registry=https://registry.npmjs.org
-          echo "published=true" >> "$GITHUB_OUTPUT"
+
+          # A token with "stage only" permission (or npm's staged-publish flow
+          # for a new package) returns success from `npm publish` while the
+          # package is only staged behind the 0.0.0-stage placeholder. Never
+          # create a GitHub Release for a version that is not live.
+          live=false
+          for attempt in 1 2 3 4 5 6; do
+            if npm view "${pkg}@${version}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+              live=true
+              break
+            fi
+            sleep 5
+          done
+          if [ "$live" != "true" ]; then
+            echo "::error::npm accepted the request but ${pkg}@${version} is not live. A new package can be staged behind the 0.0.0-stage placeholder: approve the staged version at https://www.npmjs.com/package/${pkg} (Staged Packages), or replace NPM_TOKEN with a granular token that has Read and write (publish and stage) permission, then re-run."
+            echo "live=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo "live=true" >> "$GITHUB_OUTPUT"
           {
             echo "## npm"
             echo
@@ -121,7 +139,7 @@ jobs:
   release:
     name: github release
     needs: publish
-    if: needs.publish.outputs.published == 'true'
+    if: needs.publish.outputs.live == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
