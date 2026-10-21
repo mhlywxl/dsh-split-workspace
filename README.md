@@ -4,6 +4,78 @@
 
 把 DeepSeek Harness 的对话区拆成原生多窗格工作区——左右分屏、上下分屏、田字 2×2 或自动网格，窗口放得下多少会话就开多少。每个窗格都是真实会话，拥有自己的输入框、流式输出、停止、队列、待办、附件、`/` 命令、`ask_user_question`、审批与视图页，桌面端（`dsh-app://`）同样可用。
 
+## 快速开始
+
+### 先选运行方式
+
+| 方式 | 适用场景 | 插件安装位置 |
+| --- | --- | --- |
+| Web（`dsh web`，浏览器打开） | 先在浏览器里试用、远程机器 | `web` profile |
+| 桌面端 DSH Desktop（`dsh-app://`） | 日常使用，支持完整桌面能力，推荐 | `desktop` profile，由桌面端管理 |
+
+- 支持 DSH 0.2.0 / 0.2.1，当前针对 0.2.1-rc.2 构建。
+- 包内 `lib/client.js` 已预构建，无原生依赖、无安装脚本；macOS / Windows / Linux 行为一致。
+- 插件本身运行时不联网。
+
+### Web：在线安装
+
+```sh
+dsh plugin --profile web add dsh-split-workspace
+dsh --profile web
+```
+
+`dsh --profile web` 会启动 Web 服务并打印带 token 的地址；如果服务已在运行，安装后重启它，再硬刷新页面。
+
+### Web：离线安装
+
+在联网机器上打包，或从 GitHub Release 下载 `.tgz`，然后拷到目标机器：
+
+```sh
+# 联网机器
+npm pack dsh-split-workspace
+
+# 目标机器：.tgz 绝对路径
+dsh plugin --profile web add /absolute/path/dsh-split-workspace-<version>.tgz
+
+# 或者解压后安装目录
+dsh plugin --profile web add /absolute/path/dsh-split-workspace
+dsh --profile web
+```
+
+- 只有源码 ZIP 时，先解压；发布包已包含 `lib/client.js`，通常不需要再构建。仓库根目录必须能直接看到 `package.json`。
+- 目标机器不需要访问 npm，也不需要访问 GitHub。
+
+### Desktop：在线安装
+
+1. 打开 DSH Desktop，侧边栏 **插件市场**，搜索 `dsh-split-workspace` 并安装；或进入 **插件 → 添加插件 → 安装第三方插件**，填入包名。
+2. 打开 **设置 → 插件**，启用 `dsh-split-workspace`。
+3. **完全退出并重开 DSH Desktop**，让新的客户端 bundle 生效。
+
+> 桌面端的 `desktop` profile 由 Electron 应用独占管理。不要在终端执行 `dsh plugin --profile desktop add ...`，该命令会拒绝执行；桌面端请用上面的插件市场 / 添加插件界面。
+
+### Desktop：离线安装
+
+1. 在联网机器执行 `npm pack dsh-split-workspace`，或从 Release 下载 `.tgz`，拷到目标机器。
+2. DSH Desktop → **插件 → 添加插件 → 安装第三方插件**：
+   - 优先填 `.tgz` 的**绝对路径**（安装器会识别为「压缩包」）；
+   - 如果当前版本只接受目录，先把 `.tgz` 解压，再填解压后的目录路径（目录根下要有 `package.json`）。
+3. 在 **设置 → 插件** 启用，完全退出并重开 DSH Desktop。
+4. 离线机器不需要网络；插件运行时不联网。
+
+### 启用与验证
+
+- 打开 **设置 → 插件**，确认 `dsh-split-workspace` 已启用；桌面端需完整重启，Web 端需重启 `dsh web` 并刷新。
+- 分屏入口：点击侧边栏底部（设置旁）的分屏图标，或把侧边栏里的会话拖到对话区。
+- 打开浏览器/桌面端控制台执行 `window.__dshSplitWorkspace.health()`，可看到版本、窗格数和几何状态。
+- 如果看不到分屏入口：确认至少有 2 个会话、插件未处于安全模式，并检查 DSH 版本是否匹配。
+
+### 开始分屏
+
+- 点击侧边栏底部的分屏图标：用当前会话和列表中的下一个会话开始分屏。
+- 或者把侧边栏里的会话拖到对话区：放下的会话成为第二个窗格。
+- 分屏后，把另一个会话拖到某个窗格即可替换；也可以用窗格标题栏的分屏按钮为新窗格选择会话。
+- 拖动侧边栏会话经过窗格边缘时，窗格会预览放下后的布局，并用虚线占位标出即将加入的会话；松开即应用该布局。
+
 ## 功能
 
 - **不限数量的原生窗格**：没有四窗格上限，窗口放得下多少会话就能开多少。
@@ -15,13 +87,6 @@
 - **右侧栏控制**：打开/关闭有不同图标状态，由分屏工具栏统一控制。
 - **最小化 / 恢复**：隐藏分屏但保留窗格树。
 - **持久化布局**：重启后恢复上次的布局。
-
-## 开始使用
-
-- 点击侧边栏底部（设置旁）的分屏图标：用当前会话和列表中的下一个会话开始分屏。
-- 或者把侧边栏里的会话拖到对话区：放下的会话成为第二个窗格。
-- 分屏后，把另一个会话拖到某个窗格即可替换；也可以用窗格标题栏的分屏按钮为新窗格选择会话。
-- 拖动侧边栏会话经过窗格边缘时，窗格会预览放下后的布局，并用虚线占位标出即将加入的会话；松开即应用该布局。
 
 ## 布局
 
@@ -41,10 +106,6 @@
 ## 为什么不是每个窗格一个 iframe？
 
 桌面端从 `dsh-app://app/` 提供客户端，并通过 Electron preload 注入启动图（`__DSH_BOOT__`、`__DSH_TRANSPORT__` 等）。preload 只在顶层框架运行，所以同源 iframe 会永远停在 “Loading plugins…”。因此窗格引擎在**顶层客户端**运行，按会话重新挂载原生对话组件——与上游插件相同的架构。
-
-## 桌面端安装
-
-包面向 **desktop** profile（`dsh.client.platform: "web"` 是 Desktop 客户端加载的平台）。装进 desktop profile 后重启应用，新的客户端 bundle 会被扫描。
 
 ## 命令
 
@@ -110,6 +171,75 @@ The pane engine is derived from
 (MIT). This package adapts it for the Desktop shell and adds the automatic
 layout, the unlimited pane count, rename/copy/maximize and the compact toolbar.
 
+### Quick start
+
+**Pick where to run it**
+
+| Mode | Best for | Plugin profile |
+| --- | --- | --- |
+| Web (`dsh web`, browser) | Trying it in a browser or on a remote machine | `web` |
+| DSH Desktop (`dsh-app://`) | Daily use with full desktop features (recommended) | `desktop`, managed by the app |
+
+- DSH 0.2.0 / 0.2.1 are supported; this build targets 0.2.1-rc.2.
+- The package ships a prebuilt `lib/client.js`, has no native modules and no install scripts, and is identical on macOS / Windows / Linux.
+- The plugin itself makes no network requests at runtime.
+
+**Web: online install**
+
+```sh
+dsh plugin --profile web add dsh-split-workspace
+dsh --profile web
+```
+
+`dsh --profile web` prints the tokenized URL. If the server is already running, restart it after installing and hard-refresh the page.
+
+**Web: offline install**
+
+Pack on a connected machine (or download the `.tgz` from a GitHub Release), copy it to the target, then:
+
+```sh
+npm pack dsh-split-workspace                      # connected machine
+
+dsh plugin --profile web add /absolute/path/dsh-split-workspace-<version>.tgz
+# or, after extracting:
+dsh plugin --profile web add /absolute/path/dsh-split-workspace
+dsh --profile web
+```
+
+- For a source ZIP, extract it first; the package root must contain `package.json` (release tarballs already include `lib/client.js`).
+- The target machine needs neither npm nor GitHub access.
+
+**Desktop: online install**
+
+1. Open DSH Desktop → **Plugin market** in the sidebar, search for `dsh-split-workspace`, and install it. Or use **Plugins → Add plugin → Install a third-party plugin** and enter the package name.
+2. Open **Settings → Plugins** and enable `dsh-split-workspace`.
+3. **Quit and reopen DSH Desktop completely** so the new client bundle is loaded.
+
+> The `desktop` profile is owned by the Electron app. Do **not** run `dsh plugin --profile desktop add ...` in a terminal; it is rejected. Use the in-app plugin market / Add plugin UI instead.
+
+**Desktop: offline install**
+
+1. On a connected machine run `npm pack dsh-split-workspace`, or download the `.tgz` from a Release, and copy it to the target.
+2. DSH Desktop → **Plugins → Add plugin → Install a third-party plugin**:
+   - prefer the **absolute path to the `.tgz`** (the installer recognises it as a tarball);
+   - if that build only accepts directories, extract the `.tgz` and enter the extracted directory (its root must contain `package.json`).
+3. Enable it in **Settings → Plugins**, then quit and reopen DSH Desktop.
+4. The offline machine needs no network access; the plugin makes no runtime requests.
+
+**Enable and verify**
+
+- **Settings → Plugins** must show `dsh-split-workspace` enabled. Restart Desktop completely, or restart `dsh web` and refresh the page for Web.
+- Entry points: the split icon in the sidebar footer (beside Settings), or drag a conversation from the sidebar onto the conversation column.
+- Run `window.__dshSplitWorkspace.health()` in the browser/desktop console to see the version, pane count and geometry.
+- If the split entry is missing: make sure at least two sessions exist, the plugin is not in safe mode, and re-check the enable/restart steps.
+
+**Start splitting**
+
+- Click the split icon in the sidebar footer (beside Settings) — it starts a split with the current conversation and the next listed one.
+- Or drag a conversation from the sidebar onto the conversation column: the dropped conversation becomes the second pane.
+- Once split, drag another conversation onto a pane to replace it, or use a pane header's split buttons to choose the session for a new pane.
+- While a sidebar conversation is dragged over a pane edge, the panes lay themselves out as they will after the drop and a dashed placeholder names the incoming conversation — release to commit exactly that layout.
+
 ### Features
 
 - **Unlimited native panes** — no four-pane cap; add as many conversations as
@@ -129,18 +259,6 @@ layout, the unlimited pane count, rename/copy/maximize and the compact toolbar.
   split toolbar owns the toggle.
 - **Minimize / restore** — hide the split without losing the pane tree.
 - **Persistent tree** — the layout you left comes back after a restart.
-
-### Start
-
-- Click the split icon in the sidebar footer (beside Settings) — it starts a
-  split with the current conversation and the next listed one.
-- Or drag a conversation from the sidebar onto the conversation column: the
-  dropped conversation becomes the second pane.
-- Once split, drag another conversation onto a pane to replace it, or use a
-  pane header's split buttons to choose the session for a new pane.
-- While a sidebar conversation is dragged over a pane edge, the panes lay
-  themselves out as they will after the drop and a dashed placeholder names the
-  incoming conversation — release to commit exactly that layout.
 
 ### Layout
 
@@ -201,12 +319,6 @@ That preload runs only in the top frame, so a same-origin iframe stays at
 “Loading plugins…” forever. The pane engine therefore runs **in the top
 client**, re-hosting the stock conversation primitives per session — the same
 architecture the upstream plugin uses.
-
-### Desktop use
-
-The package targets the **desktop** profile (`dsh.client.platform: "web"` is the
-platform the Desktop client loads). Install it into the desktop profile and
-restart the app so the new client bundle is scanned.
 
 ### Commands
 
