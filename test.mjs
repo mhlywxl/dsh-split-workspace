@@ -128,6 +128,10 @@ test("composer-plugin compatibility and drag-performance guards", () => {
     "dsv-reflow-settling",
     "data-conversation-scroll",
     "dragPreviewW",
+    "ComposerDraftGuard",
+    "onSuggestionAccept",
+    "SCOPED_GLOBAL_SELECTORS",
+    "GLOBAL_COMPOSER_ENTRY_IDS",
   ]) {
     assert(client.includes(token), `missing compatibility/performance guard: ${token}`);
   }

@@ -81,6 +81,7 @@ will land:
 - 窗格重命名拒绝空会话（原生重命名对话框同样如此）。
 - 输入框增强插件兼容：分屏只让当前聚焦的窗格保留 `data-composer-card`，隐藏的原始输入框和非聚焦窗格不会抢走全局选择器；每个窗格仍挂载自己的输入浮层，切换窗格时非聚焦窗格的浮层隐藏但状态保留。`dsh-tweaks-prompt-history` 的历史角标、`dsh-prompt-history` 的候选提示、斜杠/模型菜单因此都定位在当前窗格。
 - 拖动窗格时预览直接吸附，不再对宽度/高度做 180ms 过渡；拖动期间冻结窗格的尺寸观察和输入框测量，避免每个预览帧重排整段对话。
+- 页面单例型输入增强插件（如 `dsh-prompt-history`）按活跃窗格隔离：预测上下文只读活跃窗格的对话行，隐藏的原始页不再抢输入焦点；非活跃窗格的草稿被外部写入时会回滚，Tab/→ 只把预测写入当前窗格。
 
 MIT。见 `THIRD-PARTY-NOTICES.md`。
 
@@ -243,6 +244,10 @@ restart the app so the new client bundle is scanned.
 - Pane drags snap their preview instead of animating width/height over 180ms,
   and pane resize observers plus composer measurements are frozen during the
   drag, so each preview frame no longer re-lays-out a full transcript.
+- Page-singleton composer plugins (such as `dsh-prompt-history`) are scoped to
+  the active pane: prediction context reads only that pane's transcript, an
+  external write into an inactive pane's draft is rolled back, and Tab/→
+  inserts the prediction into the pane being typed in.
 
 MIT. See `THIRD-PARTY-NOTICES.md`.
 
