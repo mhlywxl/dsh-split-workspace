@@ -118,6 +118,25 @@ test("client bundle is syntactically valid and current", () => {
   assert(client.includes("dsv-layout-bar"), "split toolbar is missing");
 });
 
+test("composer-plugin compatibility and drag-performance guards", () => {
+  const client = read("lib/client.js");
+  for (const token of [
+    "installComposerAnchorBridge",
+    "data-dsv-composer-card",
+    "data-composer-overlay",
+    "inLiveReflow",
+    "dsv-reflow-settling",
+    "data-conversation-scroll",
+    "dragPreviewW",
+  ]) {
+    assert(client.includes(token), `missing compatibility/performance guard: ${token}`);
+  }
+  // The live preview must not animate pane boxes; only the glide-back may.
+  const liveBlock = client.slice(client.indexOf(".dsv-canvas.dsv-reflowing .dsv-pane-wrap {"), client.indexOf(".dsv-canvas.dsv-reflowing.dsv-reflow-settling .dsv-pane-wrap"));
+  assert(liveBlock.length > 0, "live reflow CSS block is missing");
+  assert(!/transition:\s*\n?\s*left/.test(liveBlock), "live drag still transitions left/top/width/height");
+});
+
 test("host half and loader patch", () => {
   assert(/export function apply\s*\(/.test(read("lib/index.js")), "host half must export apply()");
   assert(read("cordis.patch.yml").includes("name: 'dsh-split-workspace'"), "loader patch must mount the package");

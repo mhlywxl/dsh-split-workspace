@@ -79,6 +79,8 @@ will land:
 - 持久化递归深度上限为 32 层，是为了手改数据时的栈安全，不是窗格上限。
 - 隐藏的原生会话仍在遮罩下流式运行；窗格重新挂载原生输入框，所以每个窗格自己的输入框拥有该会话的编辑器。
 - 窗格重命名拒绝空会话（原生重命名对话框同样如此）。
+- 输入框增强插件兼容：分屏只让当前聚焦的窗格保留 `data-composer-card`，隐藏的原始输入框和非聚焦窗格不会抢走全局选择器；每个窗格仍挂载自己的输入浮层，切换窗格时非聚焦窗格的浮层隐藏但状态保留。`dsh-tweaks-prompt-history` 的历史角标、`dsh-prompt-history` 的候选提示、斜杠/模型菜单因此都定位在当前窗格。
+- 拖动窗格时预览直接吸附，不再对宽度/高度做 180ms 过渡；拖动期间冻结窗格的尺寸观察和输入框测量，避免每个预览帧重排整段对话。
 
 MIT。见 `THIRD-PARTY-NOTICES.md`。
 
@@ -232,6 +234,15 @@ restart the app so the new client bundle is scanned.
 - The hidden stock conversation still streams under the overlay; panes re-host
   the native composer, so a pane's own composer owns its session's editor.
 - Pane rename refuses blank sessions (the stock rename dialog does the same).
+- Composer-plugin compatibility: only the focused pane keeps
+  `data-composer-card`; the hidden stock composer and inactive panes no longer
+  win global selectors. Every pane still mounts its own composer overlays, and
+  inactive panes hide (without unmounting) those overlays, so
+  `dsh-tweaks-prompt-history` history pills, `dsh-prompt-history` suggestion
+  ghosts, and slash/model menus stay anchored to the pane being typed in.
+- Pane drags snap their preview instead of animating width/height over 180ms,
+  and pane resize observers plus composer measurements are frozen during the
+  drag, so each preview frame no longer re-lays-out a full transcript.
 
 MIT. See `THIRD-PARTY-NOTICES.md`.
 
