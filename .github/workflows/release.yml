@@ -1,17 +1,14 @@
 name: release
 
-# Manual run: verify -> publish to npm -> GitHub Release.
+# Push to main (or a manual run): verify -> publish to npm -> GitHub Release.
 #
-# The push trigger is intentionally off for the first release, before the
-# NPM_TOKEN repository secret exists. After the first successful run, either
-# keep triggering manually or add:
-#
-#   push:
-#     branches: [main]
-#
-# Every step is idempotent: a version already on the registry is not published
-# again, and an existing release is left alone.
+# The push trigger fires on every commit to main, but every step is idempotent:
+# a version already on the registry is not published again, and an existing
+# release is left alone. So a push that does not bump package.json still runs
+# verify and then finishes green without touching npm or GitHub Releases.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -92,7 +89,7 @@ jobs:
           set -euo pipefail
           pkg="$(node --input-type=module -e 'import { readFileSync } from "node:fs"; process.stdout.write(JSON.parse(readFileSync("package.json", "utf8")).name)')"
           version="$(node --input-type=module -e 'import { readFileSync } from "node:fs"; process.stdout.write(JSON.parse(readFileSync("package.json", "utf8")).version)')"
-          if npm view "${pkg}@${version}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+          if npm view "${pkg}@${version}" version --prefer-online --registry=https://registry.npmjs.org >/dev/null 2>&1; then
             echo "live=true" >> "$GITHUB_OUTPUT"
             {
               echo "## npm"
@@ -110,20 +107,22 @@ jobs:
           fi
           npm publish --provenance --access public --registry=https://registry.npmjs.org
 
-          # A token with "stage only" permission (or npm's staged-publish flow
-          # for a new package) returns success from `npm publish` while the
-          # package is only staged behind the 0.0.0-stage placeholder. Never
-          # create a GitHub Release for a version that is not live.
+          # `npm publish` can return before the registry serves the new
+          # version: this package took ~2.5 minutes to replicate. Poll for up
+          # to 5 minutes with --prefer-online (so npm's own HTTP cache cannot
+          # keep answering "not found"), and only create a GitHub Release once
+          # the version is actually resolvable.
           live=false
-          for attempt in 1 2 3 4 5 6; do
-            if npm view "${pkg}@${version}" version --registry=https://registry.npmjs.org >/dev/null 2>&1; then
+          for attempt in $(seq 1 20); do
+            if npm view "${pkg}@${version}" version --prefer-online --registry=https://registry.npmjs.org >/dev/null 2>&1; then
               live=true
               break
             fi
-            sleep 5
+            echo "attempt ${attempt}/20: ${pkg}@${version} not resolvable yet; retrying in 15s"
+            sleep 15
           done
           if [ "$live" != "true" ]; then
-            echo "::error::npm accepted the request but ${pkg}@${version} is not live. A new package can be staged behind the 0.0.0-stage placeholder: approve the staged version at https://www.npmjs.com/package/${pkg} (Staged Packages), or replace NPM_TOKEN with a granular token that has Read and write (publish and stage) permission, then re-run."
+            echo "::error::npm accepted the request but ${pkg}@${version} is still not live after 5 minutes. Check https://www.npmjs.com/package/${pkg} (Versions / Staged Packages): approve a staged version, or use a token with Read and write (publish and stage) permission, then re-run."
             echo "live=false" >> "$GITHUB_OUTPUT"
             exit 1
           fi
