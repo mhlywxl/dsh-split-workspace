@@ -2,7 +2,7 @@
 
 **中文（默认）** · [English](#english)
 
-把 DeepSeek Harness 的对话区拆成原生多窗格工作区——左右分屏、上下分屏、田字 2×2 或自动网格，窗口放得下多少会话就开多少。每个窗格都是真实会话，拥有自己的输入框、流式输出、停止、队列、待办、附件、`/` 命令、`ask_user_question`、审批与视图页，桌面端（`dsh-app://`）同样可用。
+把 DeepSeek Harness 的对话区拆成原生多窗格工作区——左右分屏、上下分屏、田字 2×2 或自动网格，窗口放得下多少会话就开多少。每个窗格都是真实会话，拥有自己的输入框、流式输出、停止、队列、待办、附件、`/` 命令、`ask_user_question`、审批与视图页，桌面端（`dsh-app://`）同样可用。还可以把任意会话变成可拖动、可缩放的**浮窗**，在分屏与浮窗两种模式之间来回切换。
 
 ## 快速开始
 
@@ -77,13 +77,71 @@ dsh --profile web
 - 或者把侧边栏里的会话拖到对话区：放下的会话成为第二个窗格。
 - 分屏后，把另一个会话拖到某个窗格即可替换；也可以用窗格标题栏的分屏按钮为新窗格选择会话。
 - 拖动侧边栏会话经过窗格边缘时，窗格会预览放下后的布局，并用虚线占位标出即将加入的会话；松开即应用该布局。
-- **重置分屏** 会清空本插件在 localStorage / sessionStorage 里的全部键、已保存布局、崩溃保护、最小化标记和窗格临时缓存；当分屏因为缓存或异常状态怎么都起不来时，点它即可恢复到干净状态。
+- **重置分屏** 会清空本插件在 localStorage / sessionStorage 里的分屏相关键、已保存布局、崩溃保护、最小化标记和窗格临时缓存（性能模式偏好会保留）；当分屏因为缓存或异常状态怎么都起不来时，点它即可恢复到干净状态。
+- 右键任意会话（或点行尾的「⋯」）→ **进入浮窗**，即可把该会话变成一个可自由摆放的浮窗；浮窗标题栏可以拖动、边缘可以缩放，点 **⇲ 回到分屏** 放回分屏，点 **✕** 直接关闭浮窗。同一会话不会同时出现在分屏和浮窗里：进入浮窗时会自动从分屏/待分屏中移出。
+- 右键会话 → **在系统窗口打开**：在系统默认浏览器里打开一个只显示该会话的独立窗口，关闭 / 最小化 / 双击标题栏放大 / 全屏都由系统窗口原生提供。
+- **关闭窗格（标题栏 ✕）或退出分屏时，只要剩余会话少于两个就整体退出分屏**：窗格树和所有会话的分屏状态会一起清空，不会留下「菜单里显示分屏中、却没有被选中」的残留状态。只剩一个窗格的分屏不成立，所以不保留隐藏的单窗格树。
+
+## 浮窗模式（独立窗口）
+
+分屏和浮窗是同一个工作区的两种形态，可以随时互相切换：
+
+- **分屏 → 浮窗**：右键会话 → **进入浮窗**。该会话会从分屏（或待分屏）中移出，变成一个浮动窗口；窗口内仍然是这个会话的真实原生界面（输入框、流式输出、停止、队列、工具行、附件、审批、视图页都可用）。
+- **浮窗 → 分屏**：右键浮窗里的会话 → **加入分屏**（或标题栏的 **⇲ 回到分屏**）。若当前已有分屏，会话直接追加为窗格；若还没有分屏，会先进入「待分屏」，再加一个会话即开始分屏；右键 → **退出浮窗** 只关闭浮窗，不放回分屏。
+- **浮窗操作**：拖动标题栏移动窗口，拖动任意边缘/角落缩放，点击窗口自动置顶；位置、大小和层叠顺序会持久化，DSH 重启后浮窗仍在。窗口缩放或右侧栏开合后，浮窗会自动回到可见范围。
+- **与分屏共存**：浮窗可以浮在分屏之上，每个浮窗独立占用一个真实会话；从 2 窗格分屏抽出一个会话会结束分屏并清除另一个会话的分屏状态（浮窗 ⇲ 回分屏时进入「待分屏」，再加一个会话即可重新分屏）；3 个及以上窗格抽取时，分屏继续显示剩余窗格。
+- 浮窗和分屏窗格互斥：一个会话只会存在一种形态，避免同一会话被两个输入框同时编辑。
+
+### 为什么浮窗不是系统级独立窗口？
+
+这不是偷懒，而是当前 DSH 宿主没有提供第二个原生窗口：
+
+- DSH Desktop 的 Electron 主进程只创建一个主窗口；主窗口的 `setWindowOpenHandler` 对 `window.open` 一律返回 `{ action: "deny" }`（仅把 http/https 链接交给系统浏览器打开），也没有按会话开窗的 IPC 或菜单项。
+- DSH Web 客户端是单页应用，没有 `?session=` 之类的会话深链路由；会话切换由 `uiWorkspace.openSession` 在页面内完成，不存在“打开一个只显示某会话的新窗口”的 URL。
+- 插件运行在渲染层，无法创建 Electron `BrowserWindow`；因此浮窗实现为 `shell.overlay` 之上的**应用内窗口**：它可以移动、缩放、置顶、持久化，并且宿主是真实的 `ChatPane`，但与主窗口共享同一个客户端和页面。
+
+如果 DSH 未来开放原生多窗口能力，浮窗层可以直接换成原生窗口，而“分屏 ⇄ 浮窗”的会话切换逻辑不需要改。
+
+## 系统窗口（独立窗口）
+
+- 右键会话 → **在系统窗口打开**：插件通过宿主生成已认证的 DSH Web 地址，并在**系统默认浏览器**中打开一个新窗口；窗口里只渲染这个会话（DSH 侧栏等界面被隐藏），关闭、最小化、双击标题栏放大、全屏都由系统窗口原生提供。
+- 打开时该会话会从分屏 / 浮窗 / 待分屏中移出，避免同一会话同时被两个输入框编辑；关闭系统窗口不会删除会话，它仍在侧栏里，可随时重新加入分屏。
+- 窗口页头双击可进入 / 退出页面全屏（页头的 ⛶ 按钮相同）；窗口标题会同步会话标题。
+- **为什么是浏览器窗口？** DSH Desktop 的 Electron 主进程只保留一个应用窗口，主窗口的 `setWindowOpenHandler` 拒绝用 `window.open` 创建第二个原生窗口（http/https 只交给系统浏览器）；插件的 Host 进程是 Node 子进程，没有 Electron `BrowserWindow` API。因此当前 DSH 版本下，能真正位于 DSH 工作区之外、并具备系统窗口控制的方案就是由操作系统打开一个浏览器窗口。Web 版由 `window.open` 直接打开同样的独立窗口。
+- 限制：窗口带浏览器地址栏 / 标签页 UI，不是 DSH 原生第二窗口；如果未来 DSH 开放原生多窗口，这一层可以替换。
+
+## 性能模式与卡顿排查
+
+在侧边栏底部分屏按钮的菜单里点 **性能模式**（也可用 `window.__dshSplitWorkspace.setPerformanceMode(true)`，设置会持久化）。开启后：
+
+- 关闭所有窗格 / 浮窗 / 菜单 / 提示的动画、过渡、卡片阴影和焦点光晕，并停掉工具行跑马灯动画。
+- 关闭**每个窗格的 composer 几何测量 MutationObserver**。这是最可疑的开销之一：流式输出每个 token 都会改动窗格 DOM，旧逻辑会在每次改动时排队测量（`getBoundingClientRect` + 样式读取），窗格越多越明显；性能模式改为 ResizeObserver + 1.5s 轮询。
+- 暂停 TOC 握把同步（`dsh-prompt-history` 的 ☰ 定位）、压缩结果监听、浮窗位置巡检、右侧栏 800ms 轮询（保留 resize 监听），几何测量从 1s 降到 3.5s，侧栏会话扫描从 200ms 降到 1s。
+- 拖动窗格时不再克隆整段对话 DOM，只显示标题卡预览。
+- 真实会话、输入、停止、审批、分屏 / 浮窗 / 系统窗口功能全部保留。
+
+**仍然可能卡的原因**：每个窗格都是一个完整的原生对话视图，N 个会话同时流式输出就是 N 份 React/DOM 渲染与滚动更新，这是 DSH 客户端本身的主要成本，插件无法消除（除非上游支持离屏暂停/虚拟化）。在 Windows + 低单核性能的机器上，建议同时保持 2–3 个活动窗格、少开浮窗、把不用的分屏最小化；输入框可切到紧凑 TUI 模式；如果装了 `dsh-prompt-history`，它的 TOC 同步在性能模式下会被暂停。
+
+诊断入口：`window.__dshSplitWorkspace.health()` 查看 `performance`、`panes`、`geometry`、`active`；用 DevTools Performance 对比开启性能模式前后的长任务。
+
+## 更新、重载与重启
+
+- DSH 桌面版的 profile **只在启动时应用插件/客户端变更**（插件管理器安装完会提示“请重启 DSH 使更改生效”）。刷新页面 / 重载界面**不能**加载新的插件 bundle：运行中更新会让该插件停在“等待重启”状态。
+- 更新后的正确操作：**退出 DSH 并重新打开**（Windows 从托盘 / 开始菜单彻底退出；macOS 用 ⌘Q）。
+- 本插件会尽量提醒：从 0.8.0 起，运行中的宿主会读取磁盘上的 `package.json`；一旦发现版本比当前页面新，右下角出现 **“已安装 vX，请重启 DSH 后生效”**，点 **知道了** 可关闭该版本的提醒。首次安装时插件客户端尚未加载，只能按 DSH 插件管理器的提示重启。
+- 底部菜单的 **刷新界面** 只重新加载页面（适合浮层卡住、布局异常），不会应用插件更新；Web 版可以用它加载新的客户端 bundle。
+- Host 半边（新增 HTTP 路由等）同样需要完整重启 DSH。
 
 ## 功能
 
 - **侧边栏分屏菜单**：底部分屏按钮弹出「添加分屏 / 退出分屏 / 最小化分屏 / 重置分屏」，其中退出和最小化与顶部工具栏完全一致。
 - **多选添加分屏**：弹框可搜索、可多选；已分屏时默认勾选当前窗格，可取消或追加，按最终勾选结果分屏。
 - **会话右键集成**：原生右键菜单新增「加入分屏 / 退出分屏」，未分屏时先进入待分屏，满两个才分屏；退出到只剩一个自动退出分屏。
+- **浮窗模式**：右键会话 → 「进入浮窗」，把会话变成可拖动、可缩放的独立窗口；标题栏 ⇲ 放回分屏、✕ 关闭，浮窗位置/大小/层叠顺序持久化。
+- **分屏 ⇄ 浮窗双向切换**：同一会话互斥存在于一种形态；进入浮窗自动移出分屏，回到分屏自动关闭浮窗。
+- **系统窗口**：右键会话 → 「在系统窗口打开」，在系统默认浏览器中打开只含该会话的独立窗口；原生关闭 / 最小化 / 最大化 / 全屏，打开时自动从分屏和浮窗移出。
+- **性能模式**：一键关闭动画、阴影、跑马灯和多个后台轮询/观察器，适合低配或 Windows 上多窗格卡顿的场景；设置持久化。
+- **更新提示 / 刷新界面**：检测到磁盘上的新版本时右下角提示「请重启 DSH 后生效」，分屏菜单提供「刷新界面」快捷入口（只刷新 UI，不应用插件更新）。
 - **一键重置**：清空插件相关的 localStorage / sessionStorage、布局、崩溃保护和临时缓存，避免异常状态卡住分屏。
 - **不限数量的原生窗格**：没有四窗格上限，窗口放得下多少会话就能开多少。
 - **自动布局**：2 个窗格左右分栏，3 个呈 L 形，4 个田字 2×2，5 个以上按行优先的均衡网格排列。
@@ -119,6 +177,14 @@ dsh --profile web
 - `window.__dshSplitWorkspace.health()`：版本、宿主、窗格、几何、持久化树、崩溃保护。
 - `window.__dshSplitWorkspace.split(sessionId)`：把会话加为窗格。
 - `window.__dshSplitWorkspace.addToSplit(sessionId)` / `removeFromSplit(sessionId)`：加入 / 退出分屏（未分屏时先进入待分屏）。
+- `window.__dshSplitWorkspace.float(sessionId)`：把会话变成浮窗（自动从分屏/待分屏移出）。
+- `window.__dshSplitWorkspace.dockFloat(sessionId)`：把浮窗放回分屏（没有分屏时进入待分屏）。
+- `window.__dshSplitWorkspace.closeFloat(sessionId)`：关闭浮窗（不放回分屏）。
+- `window.__dshSplitWorkspace.floats()`：当前浮窗的会话 id 列表（按创建顺序）。
+- `window.__dshSplitWorkspace.openSystemWindow(sessionId)`：在系统窗口打开该会话（宿主生成已认证 URL）。
+- `window.__dshSplitWorkspace.setPerformanceMode(true/false)`：开关性能模式（持久化）。
+- `window.__dshSplitWorkspace.performanceMode()`：当前是否处于性能模式。
+- `window.__dshSplitWorkspace.reloadClient()`：刷新页面（桌面版不会加载新的插件 bundle，更新需重启 DSH）。
 - `window.__dshSplitWorkspace.pending()`：当前待分屏的会话 id。
 - `window.__dshSplitWorkspace.openAddSplitDialog()`：打开多选添加分屏弹框。
 - `window.__dshSplitWorkspace.arrange("auto")`：重新适配自动布局（旧模式名会被接受并忽略）。
@@ -127,6 +193,34 @@ dsh --profile web
 - `window.__dshSplitWorkspace.setEnabled(false)`：总开关。
 - `window.__dshSplitWorkspace.reset()`：清除已保存布局。
 - `window.__dshSplitWorkspace.resetAll()`：连同 localStorage / sessionStorage 与临时缓存一起彻底重置（等同菜单里的「重置分屏」）。
+
+## 工程结构（源码拆分）
+
+`lib/client.js` 是**构建产物**，不要直接编辑；源码在 `src/client/`，按模块拆成 18 个有序片段，由 `scripts/build-client.mjs` 拼回单文件：
+
+| 片段 | 内容 |
+| --- | --- |
+| `00-preamble` / `01-constants` | module-loader 入口、React/P、常量、存储、性能/版本键、独立窗口检测 |
+| `02-styles` | 全部 `dsv-*` CSS（含性能模式与浮窗样式） |
+| `03-runtime` | runtime store、健康诊断、会话列表源 |
+| `04-tree` | 分屏树 store、布局算法、持久化 |
+| `05-pending-float-store` | 待分屏状态、浮窗 store 与模式切换 |
+| `06-drag-reflow` | 窗格拖动预览/reflow、拖拽工具 |
+| `07-faces` | root standard faces、session bindings |
+| `08-pane-kit` | slot 捕获与原生组件 re-host |
+| `09-pane-renderers` | 原生/降级对话与输入框渲染器 |
+| `10-pane-frame` | 窗格标题栏、关闭/浮窗按钮、composer 测量 |
+| `11-canvas-navigation` | 画布/分隔条、会话选择器、键盘导航、公共 API 前置 |
+| `12-chrome` | 安全模式/帮助/提示、性能模式提示、更新通知、座位 |
+| `13-drag-bridge` | 未激活时的拖入分屏桥 |
+| `14-launcher` | 底部菜单、多选添加分屏弹框、会话菜单集成 |
+| `15-float-window` | 浮窗组件与图层 |
+| `16-standalone` | 系统窗口独立页 |
+| `17-api-apply` | `window.__dshSplitWorkspace` API、`apply()` 与导出 |
+
+- `npm run build`：重新生成 `lib/client.js`；`npm test` 会先跑 `build:check`，源码/产物不一致会失败。
+- 为什么不用打包器：DSH 客户端只加载一个 `<plugin>/client.js`，片段共享同一个 module-loader 闭包，按顺序拼接即可；这样发布包保持零依赖、无构建依赖。
+- 修改代码时改 `src/client/` 对应片段，然后 `npm run build`；`lib/client.js` 顶部有一行 GENERATED 标记。
 
 ## 快捷键
 
@@ -148,6 +242,9 @@ will land:
 ## 限制
 
 - 没有窗格数量上限；持久化树会校验（会话唯一、深度），损坏的树会被丢弃，而不是恢复一个坏掉的工作区。
+- 「浮窗」是应用内窗口，不是 Electron 原生第二窗口：DSH Desktop 主窗口禁用了 `window.open`，Web 客户端也没有会话深链；浮窗复用真实会话组件、可拖动缩放，但仍在 DSH 主窗口内渲染（详见上面的「为什么浮窗不是系统级独立窗口？」）。
+- 浮窗和分屏窗格互斥；同一会话不会同时以两种形态渲染，避免共享编辑器冲突。
+- 「系统窗口」当前由系统默认浏览器承载（DSH Desktop 拒绝插件创建第二个原生窗口，Host 进程也没有 Electron 窗口 API），因此带浏览器地址栏；系统窗口内的会话同样互斥于分屏和浮窗。
 - 持久化递归深度上限为 32 层，是为了手改数据时的栈安全，不是窗格上限。
 - 隐藏的原生会话仍在遮罩下流式运行；窗格重新挂载原生输入框，所以每个窗格自己的输入框拥有该会话的编辑器。
 - 窗格重命名拒绝空会话（原生重命名对话框同样如此）。
@@ -162,7 +259,9 @@ MIT。见 `THIRD-PARTY-NOTICES.md`。
 ## English
 
 **Split screen for DeepSeek Harness (DSH) Desktop — open as many conversations
-as you need, side by side, stacked, or in a 2×2 / automatic grid.**
+as you need, side by side, stacked, or in a 2×2 / automatic grid.** Any
+conversation can also become a movable, resizable **floating window**, and the
+two modes switch back and forth at any time.
 
 `dsh-split-workspace` turns the DeepSeek Harness conversation area into a native
 multi-pane workspace, including in the **Desktop app** (`dsh-app://` shell). Each
@@ -252,13 +351,135 @@ dsh --profile web
 - Or drag a conversation from the sidebar onto the conversation column: the dropped conversation becomes the second pane.
 - Once split, drag another conversation onto a pane to replace it, or use a pane header's split buttons to choose the session for a new pane.
 - While a sidebar conversation is dragged over a pane edge, the panes lay themselves out as they will after the drop and a dashed placeholder names the incoming conversation — release to commit exactly that layout.
-- **Reset split** clears every plugin-owned localStorage / sessionStorage key, the saved layout, the crash guard, the minimized flag and pane caches, so a split stuck by stale state can always start again.
+- **Reset split** clears the plugin's split-related localStorage / sessionStorage keys, the saved layout, the crash guard, the minimized flag and pane caches, so a split stuck by stale state can always start again (the performance-mode preference is kept).
+- Closing a pane (header **✕**) or leaving the split via the context menu exits the split as soon as fewer than two conversations remain: the whole pane tree and every conversation's split membership are cleared, so nothing is left tagged “in split” while unselected.
+- Right-click any conversation (or its row `⋯` button) → **Enter floating window** to detach it into a movable window. Drag its title bar to move it, drag any edge to resize, use **⇲ Dock to split** to put it back into a split, or **✕** to close the float. A conversation is never hosted in both modes: entering a float removes it from the split / pending split first.
+- Right-click a conversation → **Open in system window** to open it alone in a separate system window (the default browser on Desktop), with the window's native close / minimize / maximize / fullscreen controls.
+
+### Floating windows
+
+Split panes and floating windows are two shapes of the same workspace, and a
+conversation can switch between them without a reload:
+
+- **Split → float**: right-click a conversation → **Enter floating window**. It
+  leaves the split (or the pending pick) and becomes a floating window that
+  hosts the session's real native UI — composer, streaming, Stop, queue, tool
+  rows, attachments, approvals and view tabs all keep working.
+- **Float → split**: right-click the conversation inside the float → **Add to
+  split** (or use the header's **⇲ Dock to split**). With a split running, the
+  session is appended as a pane; with none, it is parked in the pending split
+  and the next pick starts the split. **Exit floating window** only closes the
+  float without docking it.
+- **Window behaviour**: drag the title bar to move, drag any edge/corner to
+  resize, click to raise. Position, size and stacking order persist across DSH
+  restarts, and every float is clamped back into the conversation column after
+  a window resize or a right-sidebar open/close.
+- **With a split**: floats sit above the split. Extracting one conversation
+  from a 2-pane split ends the split and clears the other conversation's split
+  membership (docking the float back parks it in the pending split, so the next
+  pick restarts the split); with 3+ panes the split keeps showing the remaining
+  panes.
+- A session exists in exactly one mode at a time, so two composers can never
+  edit the same conversation at once.
+
+#### Why not a real OS-level window?
+
+This is a host limitation, not a shortcut:
+
+- The DSH Desktop Electron main process creates a single main window; its
+  `setWindowOpenHandler` returns `{ action: "deny" }` for every `window.open`
+  (http/https links are handed to the system browser), and there is no
+  per-session window IPC or menu action.
+- The DSH Web client is a single-page app with no per-session deep link such as
+  `?session=`; session switches happen in-page through `uiWorkspace.openSession`,
+  so there is no URL for "open one conversation in a new window".
+- A renderer plugin cannot create an Electron `BrowserWindow`.
+
+The float is therefore an **in-app window** rendered on the `shell.overlay`
+layer: movable, resizable, persistent, and backed by the real `ChatPane`, but
+inside the same DSH page. If DSH later exposes native multi-window support, the
+float layer can be swapped for real windows while the split⇄float switching
+logic stays unchanged.
+
+### System window
+
+- Right-click a conversation → **Open in system window**: the Host plugin mints
+  an authenticated DSH Web URL and opens it in a **separate system window**
+  (the OS default browser on Desktop). The page renders that one conversation
+  only; close / minimize / double-click-title-bar maximize / fullscreen are the
+  native window's own controls.
+- Opening it detaches the conversation from the split / float / pending pick, so
+  one conversation is never edited through two composers. Closing the system
+  window keeps the conversation — it stays in the sidebar and can rejoin a split.
+- Double-click the page header (or use its ⛶ button) to toggle page fullscreen;
+  the window title follows the conversation title.
+- **Why a browser window?** The DSH Desktop Electron main process keeps a single
+  application window and its `setWindowOpenHandler` refuses `window.open`
+  (http/https is handed to the system browser); the plugin Host runs in a Node
+  child process with no Electron `BrowserWindow` API. A browser window is
+  therefore the only real OS window with native window controls that a plugin
+  can open today. In Web mode `window.open` opens the same standalone window.
+- Limitation: the window carries browser chrome (address bar / tabs); it is not
+  a second DSH-native window. If DSH later exposes native multi-window support,
+  this layer can be replaced.
+
+### Performance mode and lag analysis
+
+Open the sidebar-footer split menu and pick **Performance mode** (or run
+`window.__dshSplitWorkspace.setPerformanceMode(true)`; it persists). It turns off:
+
+- every pane / float / menu / chip animation, transition, card shadow, focus
+  glow and running-row shimmer;
+- the per-pane composer-geometry `MutationObserver`. This is the most suspicious
+  cost: streaming mutates a pane's DOM on every token and the old path queued a
+  measurement (`getBoundingClientRect` + style reads) for each change, multiplying
+  with pane count. Performance mode keeps ResizeObserver plus a 1.5 s poll;
+- TOC-grip sync (`dsh-prompt-history` ☰ placement), compaction-watch, float
+  position polling and the 800 ms right-sidebar poll (resize listeners stay);
+  geometry polling drops from 1 s to 3.5 s and sidebar session scraping from
+  200 ms to 1 s;
+- pane-drag previews no longer clone the conversation DOM — only the title card.
+
+Real conversations, composers, approval flows, split/float/system-window
+features all stay available.
+
+**What can still lag**: every pane is a full native conversation view, so N panes
+streaming at once means N independent React/DOM render and scroll pipelines —
+the dominant upstream cost, which a renderer plugin cannot remove (that would
+need upstream offscreen pausing/virtualization). On Windows machines with weak
+single-core throughput, keep 2–3 active panes, close or minimize unused splits,
+avoid stacking floats over a split, and use the compact TUI composer. Check
+`window.__dshSplitWorkspace.health()` (`performance`, `panes`, `geometry`) and
+compare DevTools Performance long tasks with the mode on/off.
+
+### Updates, reload and restart
+
+- A DSH Desktop profile **applies plugin/client changes only at startup** (the
+  plugin manager says “restart DSH to apply”). Refreshing the page / reloading
+  the interface **cannot** load a new plugin bundle: updating while running
+  parks the plugin in a restart-required state.
+- The correct update step is to **quit DSH completely and reopen it** (Windows:
+  exit from the tray/Start menu; macOS: ⌘Q).
+- The plugin reminds you when it can: from 0.8.0 the running Host reads the
+  on-disk `package.json`, and when it sees a version newer than the page it
+  shows “Version vX is installed — restart DSH to apply” with **Got it** to
+  dismiss that version. A fresh install cannot show this because the plugin
+  client is not loaded yet — follow the built-in manager notice and restart.
+- The launcher's **Refresh interface** only reloads the page (useful for a stuck
+  overlay or layout glitch); it does not apply plugin updates. In the Web
+  profile it does load a new client bundle.
+- Host-half changes (new HTTP routes, etc.) also require a full DSH restart.
 
 ### Features
 
 - **Sidebar split menu** — the footer button opens Add / Exit / Minimize / Reset; Exit and Minimize are the same actions as the split toolbar.
 - **Multi-select add** — searchable dialog; pre-selects current panes, lets you uncheck or extend, and rebuilds the split from the final selection.
 - **Session-menu integration** — the stock right-click menu gains Add to split / Leave split. Outside split mode the first pick waits in a pending split until a second conversation is added; removing down to one pane exits the split.
+- **Floating windows** — right-click a conversation → Enter floating window turns it into a movable, resizable window; Dock to split / ✕ in its header switch it back or close it, and geometry persists.
+- **Split ⇄ float switching** — one conversation lives in exactly one mode; entering a float detaches it from the split, docking it back closes the float.
+- **System window** — right-click → Open in system window opens the conversation alone in a separate OS window (the default browser on Desktop) with native close / minimize / maximize / fullscreen; it is detached from split and float first.
+- **Performance mode** — one switch drops animations, shadows, shimmer and several background observers/polls for low-power or laggy Windows machines; the setting persists.
+- **Update chip / refresh interface** — a newer on-disk version shows a corner chip asking for a DSH restart, and the split menu offers Refresh interface (UI reload only, not a plugin update).
 - **One-click reset** — wipes plugin localStorage/sessionStorage, layout, crash guard and temporary caches.
 - **Unlimited native panes** — no four-pane cap; add as many conversations as
   the window can show.
@@ -346,6 +567,20 @@ architecture the upstream plugin uses.
 - `window.__dshSplitWorkspace.addToSplit(sessionId)` /
   `removeFromSplit(sessionId)` — add to / leave the split (the first pick
   outside split mode waits in the pending split).
+- `window.__dshSplitWorkspace.float(sessionId)` — detach the conversation into
+  a floating window (removed from the split / pending split first).
+- `window.__dshSplitWorkspace.dockFloat(sessionId)` — put a floating window
+  back into the split (or the pending split when no split is running).
+- `window.__dshSplitWorkspace.closeFloat(sessionId)` — close a floating window
+  without docking it.
+- `window.__dshSplitWorkspace.floats()` — current floating-window session ids,
+  in creation order.
+- `window.__dshSplitWorkspace.openSystemWindow(sessionId)` — open the
+  conversation in a separate system window (Host-minted authenticated URL).
+- `window.__dshSplitWorkspace.setPerformanceMode(true/false)` /
+  `performanceMode()` — toggle/inspect the persisted performance mode.
+- `window.__dshSplitWorkspace.reloadClient()` — reload the page (on Desktop this
+  does not load a new plugin bundle; restart DSH to update).
 - `window.__dshSplitWorkspace.pending()` — conversations waiting for a second
   pick before the split starts.
 - `window.__dshSplitWorkspace.openAddSplitDialog()` — open the multi-select add
@@ -357,9 +592,42 @@ architecture the upstream plugin uses.
   (diagnostics for the hole/collapse behaviour).
 - `window.__dshSplitWorkspace.setEnabled(false)` — kill switch.
 - `window.__dshSplitWorkspace.reset()` — clear the saved layout.
-- `window.__dshSplitWorkspace.resetAll()` — also wipe the plugin's
+- `window.__dshSplitWorkspace.resetAll()` — also wipe the plugin's split
   localStorage / sessionStorage keys and temporary caches (same as the menu's
-  Reset split).
+  Reset split; the performance-mode preference is preserved).
+
+### Source layout and build
+
+`lib/client.js` is a **generated artifact**; do not edit it. The source lives in
+`src/client/` as 18 ordered sections, assembled by `scripts/build-client.mjs`:
+
+| Section | Responsibility |
+| --- | --- |
+| `00-preamble` / `01-constants` | module-loader entry, React/P, constants, storage, perf/version keys, standalone detection |
+| `02-styles` | all `dsv-*` CSS (including performance mode and floats) |
+| `03-runtime` | runtime store, health diagnostics, session-list source |
+| `04-tree` | split tree store, layouts, persistence |
+| `05-pending-float-store` | pending split, float store, split⇄float helpers |
+| `06-drag-reflow` | pane drag preview/reflow and drag utilities |
+| `07-faces` | root standard faces and session bindings |
+| `08-pane-kit` | slot capture and native component re-hosting |
+| `09-pane-renderers` | native/fallback transcript + composer renderers |
+| `10-pane-frame` | pane header, close/dock buttons, composer measurement |
+| `11-canvas-navigation` | canvas/dividers, pickers, keyboard navigation, early API |
+| `12-chrome` | safe mode/help/tips, performance notice, update notice, seat |
+| `13-drag-bridge` | inactive drag-to-split bridge |
+| `14-launcher` | footer menu, multi-select add dialog, session menu integration |
+| `15-float-window` | floating window components/layer |
+| `16-standalone` | system-window standalone page |
+| `17-api-apply` | `window.__dshSplitWorkspace` API, `apply()` and exports |
+
+- `npm run build` regenerates `lib/client.js`; `npm test` runs `build:check` first
+  and fails when the source and artifact disagree.
+- No bundler: the DSH client loads exactly one `<plugin>/client.js`, the sections
+  share one module-loader closure, and ordered concatenation keeps the published
+  package dependency-free.
+- Edit the matching `src/client/` section and run `npm run build`; the generated
+  file starts with a GENERATED marker.
 
 ### Keyboard
 
@@ -370,6 +638,16 @@ architecture the upstream plugin uses.
 
 - No pane-count cap; the persisted tree is validated (unique sessions, depth)
   and a corrupt tree is discarded instead of reactivating a broken workspace.
+- A floating window is an **in-app** window, not a second Electron window: the
+  Desktop main window denies `window.open` and the Web client has no
+  per-session deep link, so the float re-hosts the real conversation inside the
+  same DSH page (see “Why not a real OS-level window?” above).
+- A conversation is either a split pane or a floating window — never both — so
+  two composers can never share one session's editor.
+- The **system window** is currently hosted by the OS default browser (DSH
+  Desktop refuses plugin-created native secondary windows and the Host process
+  has no Electron window API), so it carries browser chrome; a conversation in
+  a system window is likewise detached from split and float.
 - The persisted recursion depth is capped at 32 levels as a stack-safety guard
   for hand-edited payloads, not as a pane limit.
 - The hidden stock conversation still streams under the overlay; panes re-host

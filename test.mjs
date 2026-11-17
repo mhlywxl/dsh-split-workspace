@@ -258,6 +258,195 @@ test("README documents the launcher, pending split and reset", () => {
   assert(readme.includes("resetAll()"), "README must document resetAll()");
 });
 
+test("floating windows, split⇄float switching and persistence hooks", () => {
+  const client = read("lib/client.js");
+  for (const token of [
+    "FLOAT_KEY",
+    "floatStore",
+    "FloatLayer",
+    "FloatWindow",
+    "floatSession",
+    "dockFloatToSplit",
+    "closeFloatWindow",
+    "beginFloatGesture",
+    "moveFloatGesture",
+    "endFloatGesture",
+    "acquireComposerAnchorBridge",
+    "menuFloatOpen",
+    "menuFloatClose",
+    "dsv-float-layer",
+    "dsv-float-window",
+    "dsv-float-resize",
+    "data-dsv-float",
+  ]) {
+    assert(client.includes(token), `missing floating-window feature: ${token}`);
+  }
+  // Floats and panes are mutually exclusive per session (both directions).
+  assert(
+    client.includes("floatStore.has(sessionId)) floatStore.remove(sessionId);")
+    || client.includes("if (floatStore.has(sessionId)) floatStore.remove(sessionId);"),
+    "adding a session to the split must clear any float for it",
+  );
+  assert(
+    client.includes("if (treeStore.leafIds().indexOf(sessionId) !== -1) treeStore.closeLeaf(sessionId);"),
+    "entering a float must detach the split pane",
+  );
+  // Floats persist their geometry and participate in the hard reset.
+  assert(client.includes("storageSet(FLOAT_KEY"), "float geometry must persist");
+  assert(client.includes("persistNow()"), "the float store must flush geometry on gesture end");
+  assert(client.includes("floatStore.clear();"), "resetAll must clear floats");
+  // The right-click contribution exposes the new action.
+  assert(client.includes('id: "float"'), "session menu must contribute the float action");
+  // The float host is the same native pane host, not an iframe.
+  assert(/floating: true/.test(client), "floating windows must re-host the native pane");
+});
+
+test("locale dictionaries cover floating windows", () => {
+  const client = read("lib/client.js");
+  for (const key of [
+    "menuFloatOpen",
+    "menuFloatClose",
+    "floatDock",
+    "floatClose",
+    "floatEntered",
+    "floatDocked",
+    "floatClosed",
+    "floatHint",
+  ]) {
+    const count = client.split(key + ":").length - 1;
+    assert(count >= 2, `locale key ${key} must exist in both dictionaries`);
+  }
+});
+
+test("README documents floating windows and the native-window limitation", () => {
+  const readme = read("README.md");
+  for (const text of [
+    "浮窗模式",
+    "进入浮窗",
+    "回到分屏",
+    "为什么浮窗不是系统级独立窗口",
+    "setWindowOpenHandler",
+    "dockFloat(sessionId)",
+    "floats()",
+    "Floating windows",
+    "Why not a real OS-level window",
+  ]) {
+    assert(readme.includes(text), `README is missing ${text}`);
+  }
+});
+
+test("performance mode, update prompt and the section split", () => {
+  const client = read("lib/client.js");
+  for (const token of [
+    "PERF_KEY",
+    "performanceModeOn",
+    "setPerformanceMode",
+    "data-dsv-performance",
+    "performanceOn",
+    "performanceOff",
+    "UpdateNotice",
+    "UPDATE_POLL_MS",
+    "SEEN_VERSION_KEY",
+    "reloadClient",
+    "/dsv/version",
+    "domListMinReadMs",
+  ]) {
+    assert(client.includes(token), `missing performance/update feature: ${token}`);
+  }
+  const host = read("lib/index.js");
+  assert(host.includes("/dsv/version"), "the Host half must serve the on-disk plugin version");
+  assert(host.includes("packageVersion"), "the Host version route must read package.json");
+  // Observers that used to run on every streaming token are gated by the mode.
+  assert(client.includes("perfTimer = performanceMode ? window.setInterval(schedule, 1500) : 0"),
+    "the per-pane composer observer fallback must be perf-gated");
+  assert(client.includes("runtime.performance === true ? 3500 : 1000"),
+    "geometry polling must slow down in performance mode");
+  assert(client.includes("performanceModeOn() ? 1000 : DOM_LIST_MIN_READ_MS"),
+    "sidebar scraping must slow down in performance mode");
+  for (const section of ["00-preamble.js", "02-styles.js", "04-tree.js", "09-pane-renderers.js", "17-api-apply.js"]) {
+    assert(exists("src/client/" + section), `missing source section: ${section}`);
+  }
+  assert(exists("scripts/build-client.mjs"), "missing the client build script");
+});
+
+test("locale dictionaries cover performance mode and the update prompt", () => {
+  const client = read("lib/client.js");
+  for (const key of ["performanceMode", "performanceOn", "performanceOff", "reloadClient", "updateReady", "reloadNow", "updatedToast"]) {
+    const count = client.split(key + ":").length - 1;
+    assert(count >= 2, `locale key ${key} must exist in both dictionaries`);
+  }
+});
+
+test("README documents performance mode, reload and the source split", () => {
+  const readme = read("README.md");
+  for (const text of ["性能模式", "性能模式与卡顿排查", "刷新界面", "重启 DSH", "工程结构", "源码拆分", "Performance mode", "Source layout", "build-client.mjs"]) {
+    assert(readme.includes(text), `README is missing ${text}`);
+  }
+});
+
+test("lib/client.js is generated from the ordered src/client sections", () => {
+  const out = execFileSync(process.execPath, [join(ROOT, "scripts", "build-client.mjs"), "--check"], { encoding: "utf8" });
+  assert(out.includes("is current"), "build check did not confirm a current bundle");
+});
+
+test("closing the second-to-last pane clears the ended split state", () => {
+  const client = read("lib/client.js");
+  for (const token of [
+    "endSplitBecauseTooSmall",
+    "before.length >= 2 && leafOf(next, []).length < 2",
+    "leafOf(root, []).length < 2",
+  ]) {
+    assert(client.includes(token), `missing the end-of-split cleanup: ${token}`);
+  }
+  // The old one-pane leftovers must be gone: closeFocused and float extraction
+  // may not keep a hidden one-pane tree that still tags a session "in split".
+  assert(!client.includes("if (ids.length === 1) return { exit: true, remaining: 0 };"),
+    "closeFocused must not report an exit while keeping the tree");
+  assert(!client.includes("if (remaining.length > 0 && remaining.length < 2) treeStore.reset();")
+    || client.includes("endSplitBecauseTooSmall"), "float extraction must clear stale one-pane trees");
+});
+
+test("system window: Host route, standalone page and click-safe pane header", () => {
+  const client = read("lib/client.js");
+  for (const token of [
+    "menuSystemWindow",
+    "openSystemWindow",
+    "StandaloneSessionWindow",
+    "standaloneSessionId",
+    "detachSessionForSystemWindow",
+    "dsv-standalone",
+    "dsvWindow",
+    "standaloneFullscreen",
+    "/dsv/system-window",
+  ]) {
+    assert(client.includes(token), `missing system-window feature: ${token}`);
+  }
+  const host = read("lib/index.js");
+  assert(host.includes("/dsv/system-window"), "the Host half must register the system-window route");
+  assert(host.includes("authenticatedUrl"), "the Host route must mint an authenticated Web GUI URL");
+  assert(host.includes("dsvWindow"), "the Host route must mark the standalone window hash");
+  // Pane-header drag is armed from the mousedown target instead of keeping the
+  // whole header draggable: a draggable header swallowed the ✕ click whenever
+  // the pointer moved a few pixels between press and release.
+  assert(client.includes("header.draggable = !interactive"), "the pane header must arm drag only from non-interactive areas");
+  assert(!client.includes('className: "dsv-pane-header", draggable: true'), "a permanently draggable pane header breaks button clicks");
+});
+
+test("locale dictionaries cover the system window", () => {
+  const client = read("lib/client.js");
+  for (const key of ["menuSystemWindow", "systemWindowOpened", "systemWindowFailed", "standaloneFullscreen"]) {
+    const count = client.split(key + ":").length - 1;
+    assert(count >= 2, `locale key ${key} must exist in both dictionaries`);
+  }
+});
+
+test("README documents the system window", () => {
+  const readme = read("README.md");
+  for (const text of ["系统窗口", "在系统窗口打开", "默认浏览器", "openSystemWindow(sessionId)", "System window", "default browser", "Open in system window"]) {
+    assert(readme.includes(text), `README is missing ${text}`);
+  }
+});
+
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length > 0) {
   for (const failure of failures) console.error(`FAILED: ${failure.name}\n${failure.error.stack}`);

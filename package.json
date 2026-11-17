@@ -1,8 +1,8 @@
 {
   "name": "dsh-split-workspace",
-  "version": "0.5.0",
+  "version": "0.8.0",
   "type": "module",
-  "description": "Split-screen workspace for DeepSeek Harness (DSH) Desktop: unlimited native panes, side-by-side, stacked and 2×2 grid layouts, drag to rearrange.",
+  "description": "Split-screen workspace for DeepSeek Harness (DSH) Desktop: unlimited native panes, side-by-side, stacked and 2×2 grid layouts, drag to rearrange, movable floating windows, OS-level standalone system windows, and a performance mode for slow machines.",
   "icon": "./icon.svg",
   "license": "MIT",
   "author": "mhlywxl",
@@ -64,6 +64,8 @@
     "split-pane",
     "multi-pane",
     "multi-session",
+    "floating-window",
+    "picture-in-picture",
     "panes",
     "workspace",
     "layout",
@@ -71,10 +73,18 @@
     "tiling",
     "desktop",
     "分屏",
+    "浮窗",
     "多窗格",
     "多会话",
     "多窗口",
-    "田字布局"
+    "独立窗口",
+    "田字布局",
+    "system-window",
+    "standalone-window",
+    "系统窗口",
+    "performance-mode",
+    "性能模式",
+    "low-spec"
   ],
   "peerDependencies": {
     "react": "^18.0.0"
@@ -85,8 +95,10 @@
     }
   },
   "scripts": {
-    "test": "node test.mjs",
-    "check": "node --check lib/client.js && node test.mjs",
+    "build": "node scripts/build-client.mjs",
+    "build:check": "node scripts/build-client.mjs --check",
+    "test": "node scripts/build-client.mjs --check && node test.mjs",
+    "check": "node scripts/build-client.mjs --check && node --check lib/client.js && node test.mjs",
     "pack:check": "npm pack --dry-run"
   }
 }
