@@ -71,13 +71,20 @@ dsh --profile web
 
 ### 开始分屏
 
-- 点击侧边栏底部的分屏图标：用当前会话和列表中的下一个会话开始分屏。
+- 点击侧边栏底部的分屏图标会弹出分屏菜单：**添加分屏 / 退出分屏 / 最小化分屏 / 重置分屏**。
+- **添加分屏** 会打开多选弹框；勾选两个或更多会话后点确定即可分屏。已经处于分屏时弹框会默认勾选当前窗格的会话，可以取消勾选来移除窗格，也可以继续添加新会话，最终按勾选结果重新分屏。
+- 也可以直接在会话列表里操作：右键会话（或点行尾的「⋯」）→ **加入分屏** / **退出分屏**。还没进入分屏时，第一次「加入分屏」会先放进**待分屏**，再加一个会话才会真正进入分屏；已经在分屏时则直接加入当前分屏。反向「退出分屏」会把该会话移出分屏，只剩一个会话时自动退出分屏。
 - 或者把侧边栏里的会话拖到对话区：放下的会话成为第二个窗格。
 - 分屏后，把另一个会话拖到某个窗格即可替换；也可以用窗格标题栏的分屏按钮为新窗格选择会话。
 - 拖动侧边栏会话经过窗格边缘时，窗格会预览放下后的布局，并用虚线占位标出即将加入的会话；松开即应用该布局。
+- **重置分屏** 会清空本插件在 localStorage / sessionStorage 里的全部键、已保存布局、崩溃保护、最小化标记和窗格临时缓存；当分屏因为缓存或异常状态怎么都起不来时，点它即可恢复到干净状态。
 
 ## 功能
 
+- **侧边栏分屏菜单**：底部分屏按钮弹出「添加分屏 / 退出分屏 / 最小化分屏 / 重置分屏」，其中退出和最小化与顶部工具栏完全一致。
+- **多选添加分屏**：弹框可搜索、可多选；已分屏时默认勾选当前窗格，可取消或追加，按最终勾选结果分屏。
+- **会话右键集成**：原生右键菜单新增「加入分屏 / 退出分屏」，未分屏时先进入待分屏，满两个才分屏；退出到只剩一个自动退出分屏。
+- **一键重置**：清空插件相关的 localStorage / sessionStorage、布局、崩溃保护和临时缓存，避免异常状态卡住分屏。
 - **不限数量的原生窗格**：没有四窗格上限，窗口放得下多少会话就能开多少。
 - **自动布局**：2 个窗格左右分栏，3 个呈 L 形，4 个田字 2×2，5 个以上按行优先的均衡网格排列。
 - **拖拽自由排布**：拖动窗格标题栏到另一个窗格的左/右/上/下，可手动堆叠或分栏。
@@ -111,11 +118,15 @@ dsh --profile web
 
 - `window.__dshSplitWorkspace.health()`：版本、宿主、窗格、几何、持久化树、崩溃保护。
 - `window.__dshSplitWorkspace.split(sessionId)`：把会话加为窗格。
+- `window.__dshSplitWorkspace.addToSplit(sessionId)` / `removeFromSplit(sessionId)`：加入 / 退出分屏（未分屏时先进入待分屏）。
+- `window.__dshSplitWorkspace.pending()`：当前待分屏的会话 id。
+- `window.__dshSplitWorkspace.openAddSplitDialog()`：打开多选添加分屏弹框。
 - `window.__dshSplitWorkspace.arrange("auto")`：重新适配自动布局（旧模式名会被接受并忽略）。
 - `window.__dshSplitWorkspace.focusChat()`、`closeFocused()`。
 - `window.__dshSplitWorkspace.reflow()`：拖动预览状态（排查占位/闭合行为用）。
 - `window.__dshSplitWorkspace.setEnabled(false)`：总开关。
 - `window.__dshSplitWorkspace.reset()`：清除已保存布局。
+- `window.__dshSplitWorkspace.resetAll()`：连同 localStorage / sessionStorage 与临时缓存一起彻底重置（等同菜单里的「重置分屏」）。
 
 ## 快捷键
 
@@ -235,13 +246,20 @@ dsh --profile web
 
 **Start splitting**
 
-- Click the split icon in the sidebar footer (beside Settings) — it starts a split with the current conversation and the next listed one.
+- Click the split icon in the sidebar footer (beside Settings) to open the split menu: **Add split / Exit split / Minimize / Reset split**.
+- **Add split** opens a multi-select dialog. Check two or more conversations and confirm. While already split, the dialog pre-selects the current panes: uncheck one to remove its pane, check more to extend, and the final selection becomes the split.
+- You can also use the session list: right-click a conversation (or its row `⋯` button) and pick **Add to split** / **Leave split**. Outside split mode the first pick is parked as a *pending split*; adding a second conversation starts the split. Inside split mode the conversation joins the current split immediately. Leaving removes it, and dropping to one conversation exits split mode.
 - Or drag a conversation from the sidebar onto the conversation column: the dropped conversation becomes the second pane.
 - Once split, drag another conversation onto a pane to replace it, or use a pane header's split buttons to choose the session for a new pane.
 - While a sidebar conversation is dragged over a pane edge, the panes lay themselves out as they will after the drop and a dashed placeholder names the incoming conversation — release to commit exactly that layout.
+- **Reset split** clears every plugin-owned localStorage / sessionStorage key, the saved layout, the crash guard, the minimized flag and pane caches, so a split stuck by stale state can always start again.
 
 ### Features
 
+- **Sidebar split menu** — the footer button opens Add / Exit / Minimize / Reset; Exit and Minimize are the same actions as the split toolbar.
+- **Multi-select add** — searchable dialog; pre-selects current panes, lets you uncheck or extend, and rebuilds the split from the final selection.
+- **Session-menu integration** — the stock right-click menu gains Add to split / Leave split. Outside split mode the first pick waits in a pending split until a second conversation is added; removing down to one pane exits the split.
+- **One-click reset** — wipes plugin localStorage/sessionStorage, layout, crash guard and temporary caches.
 - **Unlimited native panes** — no four-pane cap; add as many conversations as
   the window can show.
 - **Automatic layout** — 2 panes as columns, 3 as an L, 4 as a 2×2 田字, and
@@ -325,6 +343,13 @@ architecture the upstream plugin uses.
 - `window.__dshSplitWorkspace.health()` — version, host, panes, geometry,
   persisted tree, crash guard.
 - `window.__dshSplitWorkspace.split(sessionId)` — add a session as a pane.
+- `window.__dshSplitWorkspace.addToSplit(sessionId)` /
+  `removeFromSplit(sessionId)` — add to / leave the split (the first pick
+  outside split mode waits in the pending split).
+- `window.__dshSplitWorkspace.pending()` — conversations waiting for a second
+  pick before the split starts.
+- `window.__dshSplitWorkspace.openAddSplitDialog()` — open the multi-select add
+  dialog.
 - `window.__dshSplitWorkspace.arrange("auto")` — re-fit the automatic layout
   (legacy mode names are accepted and ignored).
 - `window.__dshSplitWorkspace.focusChat()`, `closeFocused()`.
@@ -332,6 +357,9 @@ architecture the upstream plugin uses.
   (diagnostics for the hole/collapse behaviour).
 - `window.__dshSplitWorkspace.setEnabled(false)` — kill switch.
 - `window.__dshSplitWorkspace.reset()` — clear the saved layout.
+- `window.__dshSplitWorkspace.resetAll()` — also wipe the plugin's
+  localStorage / sessionStorage keys and temporary caches (same as the menu's
+  Reset split).
 
 ### Keyboard
 

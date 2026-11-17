@@ -202,6 +202,62 @@ test("no credential-shaped strings in tracked text", () => {
   }
 });
 
+test("split launcher, pending split and session-menu integration", () => {
+  const client = read("lib/client.js");
+  for (const token of [
+    "SplitLauncherLayer",
+    "SplitLauncherMenu",
+    "AddSplitDialog",
+    "pendingSplitStore",
+    "launcherState",
+    "installSplitSessionMenu",
+    "contextMenus",
+    "addSessionToSplit",
+    "removeSessionFromSplit",
+    "resetSplitEnvironment",
+    "clearSplitStorage",
+    "dsv-launcher-menu",
+    "dsv-modal-backdrop",
+    "openAddSplitDialog",
+  ]) {
+    assert(client.includes(token), `missing launcher feature: ${token}`);
+  }
+  assert(!client.includes("startSplitFromFooter"), "the old footer auto-split must be gone");
+  // The footer button opens the menu instead of starting a split directly.
+  assert(/aria-haspopup": "menu"/.test(client), "footer button must declare a menu popup");
+  // Reset must wipe every plugin-owned storage key, not just the tree.
+  assert(client.includes('SPLIT_STORAGE_PREFIX = "dsh.split-workspace."'), "reset must enumerate plugin storage keys");
+  // The session-row actions must come from the host menu service, not DOM patching.
+  assert(client.includes('target: "session"'), "session-menu contribution must target the session family");
+});
+
+test("locale dictionaries cover the launcher", () => {
+  const client = read("lib/client.js");
+  for (const key of [
+    "menuAddSplit",
+    "menuAddToSplit",
+    "menuMinimizeSplit",
+    "menuResetSplit",
+    "addSplitTitle",
+    "addSplitConfirm",
+    "addSplitCancel",
+    "pendingBadge",
+    "pendingAdded",
+    "resetDone",
+  ]) {
+    const count = client.split(key + ":").length - 1;
+    assert(count >= 2, `locale key ${key} must exist in both dictionaries`);
+  }
+});
+
+test("README documents the launcher, pending split and reset", () => {
+  const readme = read("README.md");
+  for (const text of ["添加分屏", "退出分屏", "最小化分屏", "重置分屏", "待分屏", "加入分屏"]) {
+    assert(readme.includes(text), `README is missing ${text}`);
+  }
+  assert(readme.includes("resetAll()"), "README must document resetAll()");
+});
+
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length > 0) {
   for (const failure of failures) console.error(`FAILED: ${failure.name}\n${failure.error.stack}`);
