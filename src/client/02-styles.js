@@ -140,6 +140,50 @@
     .dsv-fallback-label { white-space: nowrap; }
     html[data-dsv-performance="1"] .dsv-fallback-launcher { box-shadow: none; }
 
+    /* ---- settings page (0.10.0): the same controls as the footer menu,
+       contributed to the system Settings panel through settings.section. ---- */
+    .dsv-settings {
+      display: flex; flex-direction: column; gap: 14px;
+      padding: 2px 2px 28px;
+      color: var(--dsw-alias-label-primary);
+      font-family: var(--dsw-font-family, system-ui, sans-serif);
+    }
+    .dsv-settings-desc { font-size: 12px; line-height: 19px; color: var(--dsw-alias-label-tertiary); }
+    .dsv-settings-group {
+      display: flex; flex-direction: column;
+      border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px;
+      background: var(--dsw-alias-bg-layer-1, var(--dsw-alias-bg-base));
+      padding: 4px 14px;
+    }
+    .dsv-settings-group-title {
+      margin: 0; padding: 10px 0 6px;
+      font-size: 12px; font-weight: 600; line-height: 18px;
+      color: var(--dsw-alias-label-secondary);
+    }
+    .dsv-settings-row {
+      display: flex; align-items: center; gap: 12px; min-height: 44px;
+      padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--dsw-alias-border-l2) 62%, transparent);
+    }
+    .dsv-settings-group-title + .dsv-settings-row { border-top: 0; }
+    .dsv-settings-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .dsv-settings-row-label { flex: 1; min-width: 0; font-size: 13px; line-height: 20px; }
+    .dsv-settings-value {
+      flex: none; max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: 12px; line-height: 19px; color: var(--dsw-alias-label-tertiary);
+    }
+    .dsv-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0 12px; }
+    .dsv-settings-btn {
+      height: 30px; padding: 0 12px; border-radius: 8px;
+      border: 1px solid var(--dsw-alias-border-l2); background: transparent;
+      color: var(--dsw-alias-label-primary); font-family: inherit; font-size: 12px;
+      cursor: pointer;
+    }
+    .dsv-settings-btn:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+    .dsv-settings-btn:disabled { opacity: 0.42; cursor: default; }
+    .dsv-settings-btn.accent { background: var(--dsw-static-deepseek-500); border-color: transparent; color: #fff; }
+    .dsv-settings-btn.accent:hover:not(:disabled) { background: var(--dsw-static-deepseek-500); filter: brightness(1.05); }
+    .dsv-settings-btn.danger { color: #e5484d; }
+
     /* ---- 0.5.0 launcher: the sidebar footer menu and the multi-select
        "add split" dialog. Both mount through the shell overlay seat, so they
        are never clipped by the sidebar column or the split overlay. ---- */
@@ -171,7 +215,7 @@
     @keyframes dsv-launcher-in { from { opacity: 0; transform: translateY(4px); } }
 
     .dsv-modal-backdrop {
-      position: fixed; inset: 0; z-index: 150;
+      position: fixed; inset: 0; z-index: 2147483002;
       display: flex; align-items: center; justify-content: center;
       background: rgba(0, 0, 0, 0.32);
       animation: dsv-fade-in 0.12s ease-out;
@@ -302,10 +346,9 @@
     @media (prefers-reduced-motion: reduce) {
       .dsv-float-window { animation: none; transition: none; }
     }
-    /* ---- standalone system window (hash dsvWindow=<id>): one conversation
-       fills the whole page, rendered into the separate OS/browser window the
-       Host route opened. The window chrome (close/minimize/zoom/fullscreen)
-       is the native window's own. ---- */
+    /* ---- independent window: one conversation fills the surface, rendered
+       inside the in-app window frame with its own close / minimize /
+       maximize / fullscreen controls. ---- */
     html[data-dsv-standalone] { overflow: hidden; }
     html[data-dsv-standalone] body { overflow: hidden; }
     .dsv-standalone {
@@ -322,6 +365,38 @@
     .dsv-standalone > .dsv-pane {
       flex: 1; min-width: 0; min-height: 0;
       border: 0; border-radius: 0; box-shadow: none;
+    }
+
+    /* ---- independent window (0.10.0): a first-class in-app window for one
+       conversation. DSH exposes no plugin-facing BrowserWindow API, so this
+       replaces the old browser window with an application surface. ---- */
+    .dsv-app-window-layer {
+      position: fixed; inset: 0; z-index: 999;
+      display: flex; align-items: center; justify-content: center;
+      background: color-mix(in srgb, #000 18%, transparent);
+    }
+    .dsv-app-window {
+      position: relative; overflow: hidden;
+      width: min(1120px, calc(100vw - 96px));
+      height: min(780px, calc(100vh - 96px));
+      min-width: 0; min-height: 0;
+      border: 1px solid var(--dsw-alias-border-l2); border-radius: 14px;
+      background: var(--dsw-alias-bg-base);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(0, 0, 0, 0.12);
+    }
+    .dsv-app-window.maximized {
+      width: 100vw; height: 100vh; border: 0; border-radius: 0; box-shadow: none;
+    }
+    .dsv-app-window .dsv-standalone-embedded {
+      position: absolute; inset: 0; z-index: auto;
+    }
+    .dsv-app-window-chip { left: 16px; right: auto; bottom: 16px; z-index: 1200; }
+    .dsv-app-window-chip .dsv-chip-text {
+      max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    html[data-dsv-performance="1"] .dsv-app-window { box-shadow: none; }
+    @media (max-width: 900px) {
+      .dsv-app-window { width: 100vw; height: 100vh; border: 0; border-radius: 0; }
     }
     .dsv-standalone .dsv-pane-header { height: 40px; }
     /* One title per pane: the pane header owns it. The stock header keeps its
@@ -1220,7 +1295,7 @@
     .dsv-help-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
     /* fixed variant: used by the inactive "could not start" chip path, where
        the plugin overlay (the card's normal containing block) is not rendered */
-    .dsv-help-card-fixed { position: fixed; bottom: 56px; z-index: 95; }
+    .dsv-help-card-fixed { position: fixed; bottom: 56px; z-index: 2147482999; }
     .dsv-help-row { display: flex; gap: 10px; padding: 2px 0; }
     .dsv-help-keys {
       flex: none; min-width: 150px; font-family: ui-monospace, SFMono-Regular, Consolas, "Courier New", monospace;

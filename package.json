@@ -1,8 +1,8 @@
 {
   "name": "dsh-split-workspace",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "type": "module",
-  "description": "Split-screen workspace for DeepSeek Harness (DSH) Desktop: unlimited native panes, side-by-side, stacked and 2×2 grid layouts, drag to rearrange, movable floating windows, OS-level standalone system windows, and a performance mode for slow machines.",
+  "description": "Split-screen workspace for DeepSeek Harness (DSH) Desktop: unlimited native panes, side-by-side, stacked and 2×2 grid layouts, drag to rearrange, movable floating windows, in-app independent windows, a Settings page, and a performance mode for slow machines.",
   "icon": "./icon.svg",
   "license": "MIT",
   "author": "mhlywxl",
@@ -33,6 +33,7 @@
     "icon.svg",
     "docs/screenshots/*.png",
     "docs/screenshots/*.gif",
+    "CHANGELOG.md",
     "README.md",
     "LICENSE",
     "THIRD-PARTY-NOTICES.md"

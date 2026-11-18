@@ -98,6 +98,7 @@ test("published files exist", () => {
     "cordis.patch.yml",
     "icon.svg",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "locale/en.json",
     "locale/zh.json",
@@ -105,6 +106,7 @@ test("published files exist", () => {
   ];
   for (const file of required) assert(exists(file), `missing ${file}`);
   assert(pkg.files.includes("lib/client.js"), "files must ship lib/client.js");
+  assert(pkg.files.includes("CHANGELOG.md"), "files must ship CHANGELOG.md");
   assert(pkg.files.includes("docs/screenshots/*.png"), "files must ship screenshots");
   assert(pkg.files.includes("docs/screenshots/*.gif"), "files must ship the drag GIF");
 });
@@ -413,25 +415,31 @@ test("closing the second-to-last pane clears the ended split state", () => {
     || client.includes("endSplitBecauseTooSmall"), "float extraction must clear stale one-pane trees");
 });
 
-test("system window: Host route, standalone page and click-safe pane header", () => {
+test("independent window: in-app surface, no browser route", () => {
   const client = read("lib/client.js");
   for (const token of [
     "menuSystemWindow",
     "openSystemWindow",
-    "StandaloneSessionWindow",
-    "standaloneSessionId",
+    "openIndependentWindow",
+    "openAppWindow",
+    "IndependentSessionWindow",
+    "AppWindowLayer",
+    "AppWindowChip",
+    "appWindow",
     "detachSessionForSystemWindow",
-    "dsv-standalone",
-    "dsvWindow",
+    "dsv-app-window",
+    "dsv-app-window-chip",
     "standaloneFullscreen",
-    "/dsv/system-window",
+    "independentMinimize",
+    "independentRestore",
+    "independentClose",
   ]) {
-    assert(client.includes(token), `missing system-window feature: ${token}`);
+    assert(client.includes(token), `missing independent-window feature: ${token}`);
   }
   const host = read("lib/index.js");
-  assert(host.includes("/dsv/system-window"), "the Host half must register the system-window route");
-  assert(host.includes("authenticatedUrl"), "the Host route must mint an authenticated Web GUI URL");
-  assert(host.includes("dsvWindow"), "the Host route must mark the standalone window hash");
+  assert(!host.includes("/dsv/system-window"), "the browser system-window route must be gone");
+  assert(!host.includes("authenticatedUrl"), "the Host must not mint browser URLs for a system window");
+  assert(!client.includes("dsvWindow"), "the browser standalone hash marker must be gone");
   // Pane-header drag is armed from the mousedown target instead of keeping the
   // whole header draggable: a draggable header swallowed the ✕ click whenever
   // the pointer moved a few pixels between press and release.
@@ -439,18 +447,44 @@ test("system window: Host route, standalone page and click-safe pane header", ()
   assert(!client.includes('className: "dsv-pane-header", draggable: true'), "a permanently draggable pane header breaks button clicks");
 });
 
-test("locale dictionaries cover the system window", () => {
+test("locale dictionaries cover the independent window and settings page", () => {
   const client = read("lib/client.js");
-  for (const key of ["menuSystemWindow", "systemWindowOpened", "systemWindowFailed", "standaloneFullscreen"]) {
+  for (const key of [
+    "menuSystemWindow", "systemWindowOpened", "systemWindowFailed", "standaloneFullscreen",
+    "independentMinimize", "independentRestore", "independentClose",
+    "settingsNav", "settingsHeading", "settingsDesc", "settingsStatus", "settingsVersion",
+    "settingsPanes", "settingsPending", "settingsFloats", "settingsPerformance",
+    "settingsPerformanceDesc", "settingsActions",
+  ]) {
     const count = client.split(key + ":").length - 1;
     assert(count >= 2, `locale key ${key} must exist in both dictionaries`);
   }
 });
 
-test("README documents the system window", () => {
+test("settings.section entry mirrors the split menu", () => {
+  const client = read("lib/client.js");
+  for (const token of [
+    "settings.section",
+    "settings.section.icon",
+    "SettingsSection",
+    "openAddSplitDialog(\"footer\")",
+  ]) {
+    assert(client.includes(token), `missing settings entry: ${token}`);
+  }
+});
+
+test("README documents the independent window, settings entry and changelog", () => {
   const readme = read("README.md");
-  for (const text of ["系统窗口", "在系统窗口打开", "默认浏览器", "openSystemWindow(sessionId)", "System window", "default browser", "Open in system window"]) {
+  for (const text of [
+    "独立窗口", "在独立窗口打开", "不依赖浏览器", "openIndependentWindow", "openSystemWindow(sessionId)",
+    "系统设置入口", "设置 → 分屏工作区", "CHANGELOG.md",
+    "Independent window", "in-app", "Settings entry", "Settings → Split workspace",
+  ]) {
     assert(readme.includes(text), `README is missing ${text}`);
+  }
+  const changelog = read("CHANGELOG.md");
+  for (const version of ["0.10.0", "0.9.0", "0.8.0", "0.5.0", "0.4.3", "0.4.0"]) {
+    assert(changelog.includes("[" + version + "]"), `CHANGELOG is missing ${version}`);
   }
 });
 

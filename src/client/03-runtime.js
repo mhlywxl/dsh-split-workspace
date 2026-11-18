@@ -135,6 +135,10 @@
       minimized: readMinimized(),
       performance: readPerformanceMode(),
       updateReady: null,
+      // One conversation in an in-app independent window. DSH Desktop has no
+      // plugin-facing BrowserWindow API, so this replaces the old browser
+      // window with a first-class surface inside the application.
+      appWindow: null,
     };
     const runtimeListeners = new Set();
     function runtimeSnapshot() {
@@ -335,6 +339,7 @@
         panes: (() => { try { return treeStore.leafIds().length; } catch { return 0; } })(),
         floats: (() => { try { return floatStore.ids(); } catch { return []; } })(),
         floatLayerMounted: floatLayerMounted,
+        appWindow: runtimeState.appWindow === null ? null : Object.assign({}, runtimeState.appWindow),
         blockedReason: (() => { try { return blockedReason(); } catch { return "unknown"; } })(),
         failures: runtimeState.failures,
         lastError: runtimeState.lastError,

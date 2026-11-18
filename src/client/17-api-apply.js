@@ -263,7 +263,7 @@
           activationMarked = false;
           failureWindow.length = 0;
           failureLog.clear();
-          setRuntime({ active: false, geometryBlocked: false, helpOpen: false, tipVisible: false });
+          setRuntime({ active: false, geometryBlocked: false, helpOpen: false, tipVisible: false, appWindow: null });
           appliedOnce = false;
         },
         "dsh-split-workspace: service cleanup",
@@ -281,6 +281,21 @@
       slots.inject("sidebar.footer.action", () =>
         slots.register({ name: "sidebar.footer.action", id: "split-workspace", order: 30, label: () => t("openSplit") }, () =>
           h(FooterSplitButton),
+        ),
+      );
+      // A second entry point in the system Settings panel. The slot is
+      // declared by the settings shell; injection waits until it exists.
+      slots.inject("settings.section", () =>
+        slots.register({
+          name: "settings.section",
+          id: "split-workspace",
+          order: 40,
+          label: () => t("settingsNav"),
+        }, (props) => h(SettingsSection, props)),
+      );
+      slots.inject("settings.section.icon", () =>
+        slots.register({ name: "settings.section.icon", id: "split-workspace" }, (props) =>
+          h(SplitIconV, { size: props !== null && props !== undefined && typeof props.size === "number" ? props.size : 16 }),
         ),
       );
     }

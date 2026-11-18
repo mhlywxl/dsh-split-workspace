@@ -156,6 +156,7 @@
       for (const id of Array.isArray(ids) ? ids : []) {
         if (!isValidSessionId(id) || ordered.indexOf(id) !== -1) continue;
         if (floatStore.has(id)) floatStore.remove(id);
+        closeAppWindowFor(id);
         ordered.push(id);
       }
       if (ordered.length < 2) {
@@ -176,6 +177,7 @@
     function addSessionToSplit(sessionId) {
       if (!isValidSessionId(sessionId)) return false;
       if (floatStore.has(sessionId)) floatStore.remove(sessionId);
+      closeAppWindowFor(sessionId);
       const leaves = treeStore.leafIds();
       if (leaves.indexOf(sessionId) !== -1) {
         try { treeStore.setFocus(sessionId); } catch {}
@@ -323,6 +325,7 @@
         chipDismissed: false,
         tipVisible: false,
         helpOpen: false,
+        appWindow: null,
       });
       const resetEpoch = runtimeState.epoch;
       try {
@@ -695,6 +698,78 @@
           ? row("restart", "⏻", t("restartApp"), () => { closeLauncher(); openRestartDialog(); })
           : null,
         row("reset", "↺", t("menuResetSplit"), () => { closeLauncher(); resetSplitEnvironment(); }, { danger: true }),
+      );
+    }
+
+    /** Settings → Split workspace page: the same controls as the footer menu,
+        reachable from the system Settings panel as well. */
+    function SettingsSection(props) {
+      const runtime = useRuntime();
+      const tree = useTree();
+      const pending = usePendingSplit();
+      const floats = useFloats();
+      const leaves = tree.root === null ? [] : leafOf(tree.root, []);
+      const active = leaves.length >= 2;
+      const appWindow = runtime.appWindow;
+      const closeThen = (fn) => {
+        try { if (props !== null && props !== undefined && typeof props.close === "function") props.close(); } catch {}
+        try { fn(); } catch {}
+      };
+      const value = (text) => h("span", { className: "dsv-settings-value" }, text);
+      const row = (key, label, content) => h("div", { key, className: "dsv-settings-row" },
+        h("span", { className: "dsv-settings-row-label" }, label),
+        content,
+      );
+      const button = (key, label, onClick, options) => h("button", {
+        key,
+        type: "button",
+        className: "dsv-settings-btn"
+          + (options !== undefined && options.accent === true ? " accent" : "")
+          + (options !== undefined && options.danger === true ? " danger" : ""),
+        disabled: options !== undefined && options.disabled === true,
+        onClick: options !== undefined && options.disabled === true ? undefined : onClick,
+      }, label);
+      return h("div", { className: "dsv-settings", "data-plugin": PLUGIN_ID },
+        h("div", { className: "dsv-settings-desc" }, t("settingsDesc")),
+        h("section", { className: "dsv-settings-group" },
+          h("h3", { className: "dsv-settings-group-title" }, t("settingsStatus")),
+          row("version", t("settingsVersion"), value("v" + PLUGIN_VERSION)),
+          row("panes", t("settingsPanes"), value(String(leaves.length))),
+          row("pending", t("settingsPending"), value(String(pending.length))),
+          row("floats", t("settingsFloats"), value(String(floats.windows.length))),
+          appWindow !== null && appWindow !== undefined
+            ? row("appwindow", t("menuSystemWindow"), value(appWindow.id))
+            : null,
+        ),
+        h("section", { className: "dsv-settings-group" },
+          h("h3", { className: "dsv-settings-group-title" }, t("settingsPerformance")),
+          h("div", { className: "dsv-settings-row" },
+            h("div", { className: "dsv-settings-label" },
+              h("span", null, t("settingsPerformance")),
+              h("span", { className: "dsv-settings-value" }, t("settingsPerformanceDesc")),
+            ),
+            button("performance", runtime.performance === true ? t("performanceOn") : t("performanceOff"),
+              () => setPerformanceMode(runtime.performance !== true),
+              { accent: runtime.performance === true }),
+          ),
+        ),
+        h("section", { className: "dsv-settings-group" },
+          h("h3", { className: "dsv-settings-group-title" }, t("settingsActions")),
+          h("div", { className: "dsv-settings-actions" },
+            button("add", t("menuAddSplit"), () => closeThen(() => openAddSplitDialog("footer")), { accent: true }),
+            button("exit", t("exitSplit"), () => { try { exitWorkspace(); } catch {} }, { disabled: !active }),
+            button("minimize", t("menuMinimizeSplit"), () => { try { minimizeWorkspace(); } catch {} }, { disabled: !active || runtime.minimized === true }),
+            button("refresh", t("refreshInterface"), () => { try { location.reload(); } catch {} }),
+            desktopShell()
+              ? button("restart", t("restartApp"), () => closeThen(() => openRestartDialog()))
+              : null,
+            appWindow !== null && appWindow !== undefined
+              ? button("closeappwindow", t("independentClose"), () => closeThen(() => closeAppWindow()))
+              : null,
+            button("help", t("helpOpen"), () => closeThen(() => setRuntime({ helpOpen: true }))),
+            button("reset", t("menuResetSplit"), () => { try { resetSplitEnvironment(); } catch {} }, { danger: true }),
+          ),
+        ),
       );
     }
 

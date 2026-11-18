@@ -3,7 +3,7 @@
     // ---------------------------------------------------------------------
 
     const PLUGIN_ID = "dsh-split-workspace";
-    const PLUGIN_VERSION = "0.9.0";
+    const PLUGIN_VERSION = "0.10.0";
     const LOG_PREFIX = "[dsh-split-workspace]";
     const TREE_KEY = "dsh.split-workspace.tree.v1";
     const OPEN_KEY = "dsh.split-workspace.open.v2";
@@ -18,22 +18,6 @@
     const SEEN_VERSION_KEY = "dsh.split-workspace.seen-version.v1";
     const UPDATE_DISMISSED_KEY = "dsh.split-workspace.update-dismissed.v1";
     const UPDATE_POLL_MS = 120000;
-    /** `#dsvWindow=<sessionId>` marks a standalone system window opened by
-        the Host route: that page renders exactly one conversation and nothing
-        else (the split workspace and floats are skipped there). Read lazily on
-        every seat render: the fragment can be applied after a plugin bundle is
-        evaluated on some hosts, so a load-time snapshot is not reliable. */
-    function standaloneSessionId() {
-      try {
-        if (typeof window === "undefined" || window.location === undefined) return null;
-        const hash = String(window.location.hash || "");
-        if (hash.length < 2) return null;
-        const id = new URLSearchParams(hash.slice(1)).get("dsvWindow");
-        return id !== null && id !== undefined && id !== "" && isValidSessionId(id) ? id : null;
-      } catch {
-        return null;
-      }
-    }
     function readChipPos() {
       const raw = storageGet(CHIP_KEY);
       if (!raw) return null;
@@ -553,9 +537,24 @@
       floatClosed: "Floating window closed",
       floatHint: "Drag the title bar to move · drag an edge to resize",
       helpFloat: "Right-click a conversation → Enter floating window detaches it into a movable window; Dock to split puts it back.",
-      menuSystemWindow: "Open in system window",
-      systemWindowOpened: "Opened in a separate system window",
-      systemWindowFailed: "Could not open a system window",
+      helpIndependent: "Right-click a conversation → Open in independent window shows it alone in an app-internal window with close / minimize / maximize / fullscreen. It does not open a browser.",
+      menuSystemWindow: "Open in independent window",
+      systemWindowOpened: "Opened in an independent window",
+      systemWindowFailed: "Could not open the independent window",
+      independentMinimize: "Minimize",
+      independentRestore: "Restore window",
+      independentClose: "Close window",
+      settingsNav: "Split workspace",
+      settingsHeading: "Split workspace",
+      settingsDesc: "Unlimited native panes, floating windows and app-internal independent windows. These settings apply to the whole plugin.",
+      settingsStatus: "Status",
+      settingsVersion: "Version",
+      settingsPanes: "Panes",
+      settingsPending: "Pending split",
+      settingsFloats: "Floating windows",
+      settingsPerformance: "Performance mode",
+      settingsPerformanceDesc: "Reduces animations and background observers, and skips the drag-preview thumbnail.",
+      settingsActions: "Actions",
       standaloneFullscreen: "Fullscreen",
       performanceMode: "Performance mode",
       performanceOn: "Performance mode on — animations and background observers are reduced",
@@ -678,9 +677,24 @@
       floatClosed: "浮窗已关闭",
       floatHint: "拖动标题栏移动 · 拖动边缘调整大小",
       helpFloat: "右键会话 → 进入浮窗，可把该会话变成独立浮窗；浮窗标题栏的“回到分屏”可放回分屏。",
-      menuSystemWindow: "在系统窗口打开",
-      systemWindowOpened: "已在独立系统窗口中打开",
-      systemWindowFailed: "无法打开系统窗口",
+      helpIndependent: "右键会话 → 在独立窗口打开，会在应用内单独显示该会话，提供关闭 / 最小化 / 最大化 / 全屏，不依赖浏览器。",
+      menuSystemWindow: "在独立窗口打开",
+      systemWindowOpened: "已在独立窗口中打开",
+      systemWindowFailed: "无法打开独立窗口",
+      independentMinimize: "最小化",
+      independentRestore: "恢复窗口",
+      independentClose: "关闭窗口",
+      settingsNav: "分屏工作区",
+      settingsHeading: "分屏工作区",
+      settingsDesc: "无限原生窗格、浮窗与应用内独立窗口。这里的设置对整个插件生效。",
+      settingsStatus: "状态",
+      settingsVersion: "版本",
+      settingsPanes: "窗格",
+      settingsPending: "待分屏",
+      settingsFloats: "浮窗",
+      settingsPerformance: "性能模式",
+      settingsPerformanceDesc: "减少动画与后台观察器，并跳过拖动缩略图预览。",
+      settingsActions: "操作",
       standaloneFullscreen: "全屏",
       performanceMode: "性能模式",
       performanceOn: "性能模式已开启：动画与后台观察器已精简",

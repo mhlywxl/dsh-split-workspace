@@ -33,6 +33,8 @@
       const floats = useFloats();
       const windows = floats.windows;
       const count = windows.length;
+      const appWindow = runtime.appWindow;
+      const appWindowOpen = appWindow !== null && appWindow !== undefined && appWindow.minimized !== true;
       React.useEffect(() => {
         if (runtime.enabled !== true || count === 0) return undefined;
         floatLayerMounted = true;
@@ -64,7 +66,7 @@
           }
         };
       }, [count, runtime.performance]);
-      if (runtime.enabled !== true || count === 0) return null;
+      if (runtime.enabled !== true || count === 0 || appWindowOpen) return null;
       // Stacking is a z-index swap, never a DOM reorder: moving a live editor
       // subtree (keyed React children) would blur the composer.
       const ranks = new Map();

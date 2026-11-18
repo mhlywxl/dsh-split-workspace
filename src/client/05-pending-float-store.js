@@ -280,6 +280,7 @@
         detached first so the same conversation is never hosted twice. */
     function floatSession(sessionId) {
       if (!isValidSessionId(sessionId)) return false;
+      closeAppWindowFor(sessionId);
       prepareExplicitSplit();
       if (floatStore.has(sessionId)) {
         floatStore.focus(sessionId);
@@ -349,44 +350,18 @@
       } catch {}
     }
 
-    /** Ask the Host for the authenticated standalone URL and open it as a real
-        separate window. In Desktop the app's window-open handler forwards
-        http/https to the system browser (the only OS window a renderer plugin
-        can create here); in Web mode `window.open` opens a browser window.
-        A blank window is pre-opened in Web mode so the async Host round-trip
-        cannot lose the user-gesture popup permission. */
+    /** Open one conversation in the in-app independent window.
+        DSH Desktop exposes no BrowserWindow API to plugins and denies
+        window.open, so a real OS window is impossible here. The independent
+        window is a first-class surface inside the application (no browser
+        dependency): close / minimize / maximize-restore / fullscreen, and the
+        same native conversation component. */
     function openSystemWindow(sessionId) {
       if (!isValidSessionId(sessionId)) return Promise.resolve(false);
-      let preopened = null;
-      if (typeof window.dshDesktop === "undefined") {
-        try { preopened = window.open("", "_blank"); } catch { preopened = null; }
-      }
-      const fail = () => {
-        try { if (preopened !== null && preopened.closed !== true) preopened.close(); } catch {}
-        showPaneToast(t("systemWindowFailed"), true);
-        return false;
-      };
-      return fetch("/dsv/system-window", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sessionId }),
-      }).then((response) => (response.ok ? response.json().catch(() => null) : null)).then((payload) => {
-        if (payload === null || payload === undefined || payload.ok !== true
-            || typeof payload.url !== "string" || payload.url === "") return fail();
-        try {
-          detachSessionForSystemWindow(sessionId);
-          if (preopened !== null && preopened.closed !== true) {
-            try { preopened.opener = null; } catch {}
-            preopened.location.href = payload.url;
-          } else {
-            window.open(payload.url, "_blank", "noopener,noreferrer");
-          }
-          showPaneToast(t("systemWindowOpened"), true);
-          return true;
-        } catch {
-          return fail();
-        }
-      }).catch(() => fail());
+      detachSessionForSystemWindow(sessionId);
+      const opened = openAppWindow(sessionId);
+      if (opened === true) showPaneToast(t("systemWindowOpened"), true);
+      return Promise.resolve(opened === true);
     }
 
     let floatLayerMounted = false;

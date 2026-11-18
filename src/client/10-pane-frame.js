@@ -45,7 +45,7 @@
       return zone.side === "before" ? { top: 4, left: 4, right: 4, height: "50%" } : { bottom: 4, left: 4, right: 4, height: "50%" };
     }
 
-    function PaneFrame({ sessionId, session, summary, focused, chrome, onFocus, onClose, pickerFor, floating, standalone }) {
+    function PaneFrame({ sessionId, session, summary, focused, chrome, onFocus, onClose, pickerFor, floating, standalone, appWindow, appWindowMaximized }) {
       const runtime = useRuntime();
       const performanceMode = runtime.performance === true;
       const maximized = runtime.maximized === sessionId;
@@ -473,7 +473,16 @@
           }
         } catch {}
       };
-      const actionButtons = standalone === true
+      const actionButtons = appWindow === true
+        ? [
+          actionButton("copy", t("copy"), "⧉", doCopy),
+          actionButton("help", t("helpOpen"), "?", doHelp),
+          actionButton("fullscreen", t("standaloneFullscreen"), "⛶", doFullscreen),
+          actionButton("minimize", t("independentMinimize"), "—", minimizeAppWindow),
+          actionButton("maximize", appWindowMaximized === true ? t("restore") : t("maximize"), appWindowMaximized === true ? "⤡" : "⤢", toggleMaximizeAppWindow),
+          actionButton("close", t("independentClose"), h(CloseIcon, { size: 14 }), closeAppWindow),
+        ]
+        : standalone === true
         ? [
           actionButton("copy", t("copy"), "⧉", doCopy),
           actionButton("help", t("helpOpen"), "?", doHelp),
@@ -663,7 +672,14 @@
             onPointerUp: floating === true ? endFloatGesture : undefined,
             onPointerCancel: floating === true ? endFloatGesture : undefined,
             title: floating === true ? t("floatHint") : title,
-            onDoubleClick: floating === true ? undefined : standalone === true
+            onDoubleClick: floating === true ? undefined : appWindow === true
+              ? (event) => {
+                  const target = event.target;
+                  if (target !== null && target !== undefined && typeof target.closest === "function"
+                      && target.closest("button,input,.dsv-pane-title-text") !== null) return;
+                  toggleMaximizeAppWindow();
+                }
+              : standalone === true
               ? (event) => {
                   const target = event.target;
                   if (target !== null && target !== undefined && typeof target.closest === "function"
@@ -751,7 +767,14 @@
           className: "dsv-pane-menu",
           onPointerDown: (event) => event.stopPropagation(),
         },
-          ...(standalone === true ? [
+          ...(appWindow === true ? [
+            menuItem("copy", t("copy"), () => { setMenuOpen(false); doCopy(); }),
+            menuItem("help", t("helpOpen"), () => { setMenuOpen(false); doHelp(); }),
+            menuItem("fullscreen", t("standaloneFullscreen"), () => { setMenuOpen(false); doFullscreen(); }),
+            menuItem("minimize", t("independentMinimize"), () => { setMenuOpen(false); minimizeAppWindow(); }),
+            menuItem("maximize", appWindowMaximized === true ? t("restore") : t("maximize"), () => { setMenuOpen(false); toggleMaximizeAppWindow(); }),
+            menuItem("close", t("independentClose"), () => { setMenuOpen(false); closeAppWindow(); }, true),
+          ] : standalone === true ? [
             menuItem("copy", t("copy"), () => { setMenuOpen(false); doCopy(); }),
             menuItem("help", t("helpOpen"), () => { setMenuOpen(false); doHelp(); }),
             menuItem("fullscreen", t("standaloneFullscreen"), () => { setMenuOpen(false); doFullscreen(); }),
@@ -799,6 +822,8 @@
         && a.chrome === b.chrome
         && a.floating === b.floating
         && a.standalone === b.standalone
+        && a.appWindow === b.appWindow
+        && a.appWindowMaximized === b.appWindowMaximized
         && summaryShallowEqual(a.summary, b.summary),
     );
 
@@ -813,7 +838,7 @@
       return dir === "h" ? { width: basis, height: "100%" } : { height: basis, width: "100%" };
     }
 
-    function RenderLeaf({ id, chrome, generation, floating, standalone }) {
+    function RenderLeaf({ id, chrome, generation, floating, standalone, appWindow, appWindowMaximized }) {
       const state = useTree();
       const sessions = useSessionsList();
       const liveSummary = sessions !== null && sessions !== undefined && sessions.byId !== undefined ? sessions.byId[id] : undefined;
@@ -835,13 +860,15 @@
         chrome: chrome !== false,
         floating: floating === true,
         standalone: standalone === true,
+        appWindow: appWindow === true,
+        appWindowMaximized: appWindowMaximized === true,
         focused: floating !== true && standalone !== true && state.focus === id,
         onFocus: floating === true ? (sid) => { floatStore.focus(sid); } : (sid) => treeStore.setFocus(sid),
         // Teardown is NOT done here any more: treeStore.commit schedules the
         // departed leaf for disposal and ChatPane releases on unmount, so every
         // leaf-mutation path (✕, sidebar swap, closeFocused, movePane) is
         // covered by the same idempotent path.
-        onClose: floating === true ? () => closeFloatWindow(id) : (sid) => closePaneAnimated(sid),
+        onClose: floating === true ? () => closeFloatWindow(id) : appWindow === true ? () => closeAppWindow() : (sid) => closePaneAnimated(sid),
         pickerFor: floating === true || standalone === true ? () => {} : (...args) => togglePicker(...args),
       }));
     }

@@ -72,6 +72,7 @@
           h("span", { className: "dsv-help-body" }, item.action),
         )),
         h("div", { className: "dsv-help-body", style: { marginTop: "6px" } }, t("helpGestures")),
+        h("div", { className: "dsv-help-body", style: { marginTop: "6px" } }, t("helpIndependent")),
         h("div", { className: "dsv-help-body", style: { marginTop: "6px" } }, t("helpDisable")),
         h("div", { className: "dsv-help-body", style: { marginTop: "2px" } }, t("helpDiagnostics")),
         h("div", { className: "dsv-help-body", style: { marginTop: "2px" } }, t("helpRestart")),
@@ -316,24 +317,19 @@
 
     function SplitWorkspaceSeat(props) {
       const runtime = useRuntime();
-      // A standalone system window renders ONLY its conversation: no split
-      // workspace, no floats, no launcher. WorkspaceApp still mounts (hidden,
-      // inactive) because it publishes the root standard faces the pane host
-      // needs.
-      const standaloneId = standaloneSessionId();
-      if (standaloneId !== null) {
-        try { document.documentElement.setAttribute("data-dsv-standalone", "1"); } catch {}
-        const standaloneProps = Object.assign({}, props, { dsvStandalone: true });
-        return h(React.Fragment, null,
-          h(WorkspaceBoundary, { key: "workspace-" + runtime.epoch }, h(WorkspaceApp, standaloneProps)),
-          h(WorkspaceBoundary, { key: "standalone-" + runtime.epoch }, h(StandaloneSessionWindow, { sessionId: standaloneId })),
-        );
-      }
+      const appWindowState = runtime.appWindow;
+      const appWindowOpen = appWindowState !== null && appWindowState !== undefined && appWindowState.minimized !== true;
       return h(React.Fragment, null,
-        h(WorkspaceBoundary, { key: "workspace-" + runtime.epoch }, h(WorkspaceApp, props)),
+        h(WorkspaceBoundary, { key: "workspace-" + runtime.epoch },
+          h(WorkspaceApp, Object.assign({}, props, { dsvAppWindowOpen: appWindowOpen }))),
         h(PluginChrome, null),
         h(WorkspaceBoundary, { key: "floats-" + runtime.epoch }, h(FloatLayer, null)),
         h(SplitLauncherLayer, null),
+        h(AppWindowChip, null),
+        h(AppWindowLayer, null),
+        // The settings page and the help action can open the card without a
+        // live split; the pane/overlay path only renders it while active.
+        runtime.helpOpen === true && runtime.active !== true ? h(HelpCard, { fixed: true }) : null,
         h(UpdateNotice, null),
       );
     }
@@ -367,10 +363,10 @@
       // The activation gate: >=2 panes AND the kill switch/safe mode allow it.
       // Everything below keys off this — observers, DOM scraping, the overlay.
       const minimized = runtime.minimized === true;
-      // A standalone system window never activates the split overlay: its whole
-      // page is owned by StandaloneSessionWindow.
-      const standaloneWindow = props.dsvStandalone === true;
-      const active = standaloneWindow !== true && leaves.length >= 2
+      // An independent window owns the screen while it is open; keep the
+      // split tree (and its observers) quiet underneath.
+      const appWindowOpen = props.dsvAppWindowOpen === true;
+      const active = appWindowOpen !== true && leaves.length >= 2
         && runtime.enabled === true && runtime.safeMode !== true;
       const [picker, setPicker] = React.useState(pickerRequest);
       const [bounds, setBounds] = React.useState({ left: 0, right: 0, top: 0, bottom: 0, ok: false });

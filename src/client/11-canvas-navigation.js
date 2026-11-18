@@ -455,9 +455,17 @@
       floats() {
         return safeCall("floats()", () => floatStore.ids(), []);
       },
-      /** Open one conversation in a separate system window (Host-backed URL). */
+      /** Open one conversation in the app-internal independent window. */
       openSystemWindow(sessionId) {
         return safeCall("openSystemWindow()", () => openSystemWindow(sessionId), false);
+      },
+      /** Alias for openSystemWindow: independent of any browser window. */
+      openIndependentWindow(sessionId) {
+        return safeCall("openIndependentWindow()", () => openSystemWindow(sessionId), false);
+      },
+      /** Current independent-window state ({ id, minimized, maximized } or null). */
+      appWindow() {
+        return safeCall("appWindow()", () => (runtimeState.appWindow === null ? null : Object.assign({}, runtimeState.appWindow)), null);
       },
       /** Toggle performance mode (persisted; reduces animations/observers). */
       setPerformanceMode(flag) {
