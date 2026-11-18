@@ -354,7 +354,7 @@
         session-hotkeys side hides the whole workspace shell (persisted, with a
         restore affordance) and the tree comes back intact on restore.
         Returns null when there is no pane to close. */
-    window.__dshSplitWorkspace = Object.assign(window.__dshSplitWorkspace || {}, {
+    Object.assign(pluginPublicApi(), {
       split(sessionId) {
         return safeCall("split()", () => {
           if (typeof sessionId !== "string" || sessionId === "") return null;
@@ -539,7 +539,7 @@
     });
     // Live service seam (diagnostics only): lets the maintainer inspect the
     // right-sidebar controller and the shell layout while split view runs.
-    Object.defineProperty(window.__dshSplitWorkspace, "__svc", {
+    definePublicMember("__svc", {
       value: Object.freeze({
         ctxAlive: () => pluginCtx !== null && pluginCtx !== undefined,
         names() {
@@ -555,8 +555,11 @@
       configurable: true,
     });
     // Read-only test seam: production calls the very same functions, so the
-    // logic under test is the logic that runs on the user's host.
-    Object.defineProperty(window.__dshSplitWorkspace, "__test", {
+    // logic under test is the logic that runs on the user's host. It is
+    // deliberately non-configurable; the fresh per-execution API object (see
+    // pluginPublicApi) is what keeps a live bundle replacement from throwing
+    // `Cannot redefine property`.
+    definePublicMember("__test", {
       value: Object.freeze({
         frameColumns,
         selectFrameColumns,
@@ -584,8 +587,6 @@
         COLUMN_MIN_HEIGHT,
         TESTED_RELEASES: TESTED_RELEASES.slice(),
       }),
-      enumerable: false,
-      writable: false,
       configurable: false,
     });
 

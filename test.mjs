@@ -397,6 +397,55 @@ test("README documents performance mode, reload and the source split", () => {
   }
 });
 
+test("a rebuilt client bundle can replace itself inside the open page", () => {
+  const client = read("lib/client.js");
+  // DSH swaps a rebuilt client bundle into the open page: the factory runs
+  // again while window.__dshSplitWorkspace still holds the previous run's
+  // descriptors. The read-only __test seam is non-configurable, so re-defining
+  // it on the inherited object threw "Cannot redefine property: __test" and
+  // aborted the whole factory — the footer button, the session menus and the
+  // Settings section stayed missing until the page reloaded. Every bundle
+  // execution must therefore publish a FRESH public object, install its members
+  // through the guarded helper, and never reuse or re-define on the old one.
+  assert(client.includes("let publicApiGlobal = null;"),
+    "the public API global must be per-execution state");
+  assert(client.includes("function pluginPublicApi()"),
+    "missing the per-execution public API factory");
+  assert(client.includes("window.__dshSplitWorkspace = publicApiGlobal;"),
+    "the public API factory must publish the fresh object");
+  assert(client.includes("function definePublicMember("),
+    "missing the guarded member installer");
+  assert(client.includes('definePublicMember("__test"'),
+    "__test must be installed through the guarded installer");
+  assert(client.includes('definePublicMember("__svc"'),
+    "__svc must be installed through the guarded installer");
+  assert(!client.includes("Object.defineProperty(window.__dshSplitWorkspace"),
+    "diagnostics members must not be redefined on the inherited global");
+  assert(!client.includes("Object.assign(window.__dshSplitWorkspace || {}"),
+    "the public API object must not be reused across bundle executions");
+  // The seam stays read-only for callers, and a refused definition is only a
+  // warning (a diagnostics seam may never take the plugin down).
+  assert(client.includes("configurable: false,") && client.includes("writable: false,"),
+    "the public members must stay read-only");
+  assert(client.includes("kept from the previous bundle"),
+    "a refused diagnostics definition must degrade to a warning");
+
+test("a failed client setup stays retryable without a reload", () => {
+  const client = read("lib/client.js");
+  // DSH retries a failed client entry by restarting the fiber on the SAME
+  // module exports, so a once-guard set before a throwing statement would turn
+  // one bad setup into a plugin that never mounts again (the "restart DSH to
+  // get the menus back" symptom). apply() must therefore clear the guard when
+  // its setup throws, and the setup must live in its own function.
+  assert(client.includes("function install(ctx, slots)"),
+    "apply() must delegate its setup to install()");
+  assert(/catch \(error\) \{[\s\S]{0,800}appliedOnce = false;[\s\S]{0,80}throw error;/.test(client),
+    "apply() must clear the once-guard and rethrow when install() fails");
+  assert(client.includes("appliedOnce = false;"),
+    "the once-guard must be reset");
+});
+});
+
 test("lib/client.js is generated from the ordered src/client sections", () => {
   const out = execFileSync(process.execPath, [join(ROOT, "scripts", "build-client.mjs"), "--check"], { encoding: "utf8" });
   assert(out.includes("is current"), "build check did not confirm a current bundle");

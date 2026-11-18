@@ -704,7 +704,7 @@
         elected, or an entry elected without a store face. Diagnostics only —
         nothing in the render path reads it. */
     const composerChainDebug = { last: null, slots: null };
-    window.__dshSplitWorkspace = Object.assign(window.__dshSplitWorkspace || {}, { composerChain: composerChainDebug });
+    Object.assign(pluginPublicApi(), { composerChain: composerChainDebug });
 
     /** Probe both slot-ledger surfaces for the keys this plugin consumes.
         `entries()` is the raw registration view (chain keys consume every

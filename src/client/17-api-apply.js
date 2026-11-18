@@ -61,6 +61,25 @@
       const slots = ctx.get("slots");
       if (slots === undefined) return;
       appliedOnce = true;
+      try {
+        install(ctx, slots);
+      } catch (error) {
+        // DSH retries a failed client entry by re-running apply() on the SAME
+        // module exports (the fiber restart does not re-materialize the
+        // bundle), so keeping the once-guard set here would turn a single setup
+        // throw into a plugin that never mounts again — no footer button, no
+        // session menus, no Settings section, until the page is reloaded. That
+        // is the "restart DSH to get the menus back" symptom. Clearing the flag
+        // lets the next retry rebuild everything; whatever this attempt already
+        // registered is disposed with the failed fiber.
+        appliedOnce = false;
+        throw error;
+      }
+    }
+
+    /** Everything one successful apply() installs. Kept separate from the
+        once-guard so a failed setup can clear it before DSH retries. */
+    function install(ctx, slots) {
       const locale = ctx.get("locale");
       pluginCtx = ctx;
       sessionsService = ctx.get("sessions");

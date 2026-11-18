@@ -4,6 +4,17 @@
 
 This file records public releases of `dsh-split-workspace`; each version ends with a one-line English summary.
 
+## [0.11.1] - 2026-11-18
+
+### Fixed
+
+- **修复重建后的客户端 bundle 无法热替换、必须刷新页面或重启 DSH 才能恢复菜单的问题。** 插件在浏览器端的工厂每次执行都会把只读诊断接口 `__test` 定义到 `window.__dshSplitWorkspace` 上（`configurable: false`）。DSH 在打开的页面里热替换重建后的客户端 bundle 时会再次执行同一个工厂，第二次定义抛出 `TypeError: Cannot redefine property: __test`，整个工厂就此中断：**左下角分屏按钮、会话右键「分屏插件」菜单和「设置 → 分屏工作区」同时消失**，DSH 把该插件记为“本页面的插件未能完成同步”，只能刷新页面或重启才能恢复。此前为了让改动生效而反复重启 DSH，原因就是这个异常，而不是 DSH 的热加载不生效。
+  - 现在每次 bundle 执行都创建一个**新的** `window.__dshSplitWorkspace` 对象，`__test` / `__svc` 等诊断成员改为通过带保护的安装函数定义：任何诊断接口都不能再让插件加载失败，被替换的 bundle 也不会再把上一次加载的闭包（`health()`、`retry()`、`__test` 里的各个函数）继续暴露出去。
+  - 覆盖的路径：热替换重建后的客户端 bundle、在设置 → 插件里禁用后再启用、以及从 0.11.0 热升级到 0.11.1——三种情况都在同一个页面内就地生效，不需要刷新或重启。
+  - 新增离线断言，防止重新引入“在继承的旧全局对象上重复定义成员”的写法。
+
+**English summary:** Fixed the client bundle failing to hot-swap after a rebuild: the factory re-defined the read-only `__test` diagnostics seam on the inherited `window.__dshSplitWorkspace` object and threw `Cannot redefine property: __test`, which aborted the whole factory and left the footer button, session menus and Settings page missing until the page reloaded. Each bundle execution now publishes a fresh API object, and `__test` / `__svc` are installed through a guarded helper, so bundle replacement, disable→enable and the 0.11.0→0.11.1 hot upgrade all apply in place.
+
 ## [0.11.0] - 2026-11-18
 
 ### Added

@@ -77,6 +77,57 @@
       try { window.localStorage.removeItem(key); return true; } catch { return false; }
     }
 
+    // ---------------------------------------------------------------------
+    // public diagnostics global (one fresh object per bundle execution)
+    //
+    // `window.__dshSplitWorkspace` outlives the bundle that created it: DSH
+    // swaps a rebuilt client bundle into the running page (client HMR `rebuilt`
+    // frame) and a disable / enable cycle re-creates the entry without reloading
+    // the page. The next factory execution therefore used to inherit the
+    // previous one's descriptors — and the read-only `__test` seam is
+    // non-configurable, so re-defining it on the inherited object threw
+    // `TypeError: Cannot redefine property: __test`. That exception aborted the
+    // whole factory: the footer button, the session menus and the Settings page
+    // stayed missing (DSH listed the entry as a failed page synchronization)
+    // until the user reloaded the page or restarted DSH. A fresh object per
+    // execution makes every definition legal again and also stops a replacement
+    // from publishing closures that belong to the previous bundle (health(),
+    // retry(), __test helpers, …). Nothing inside the plugin reads the global,
+    // so swapping the identity is safe.
+    // ---------------------------------------------------------------------
+
+    /** The API object of THIS bundle execution. */
+    let publicApiGlobal = null;
+
+    function pluginPublicApi() {
+      if (publicApiGlobal === null) {
+        publicApiGlobal = {};
+        window.__dshSplitWorkspace = publicApiGlobal;
+      }
+      return publicApiGlobal;
+    }
+
+    /** Define one member of the public global; a diagnostics seam must never
+        take the plugin down, so a refused definition is only a warning. */
+    function definePublicMember(key, descriptor) {
+      const target = pluginPublicApi();
+      if (Object.prototype.hasOwnProperty.call(target, key)) return false;
+      try {
+        Object.defineProperty(target, key, Object.assign({
+          configurable: false,
+          enumerable: false,
+          writable: false,
+        }, descriptor));
+        return true;
+      } catch (error) {
+        try {
+          const message = error !== null && error !== undefined && error.message !== undefined ? error.message : error;
+          console.warn(LOG_PREFIX + " diagnostics seam '" + key + "' kept from the previous bundle: " + String(message));
+        } catch {}
+        return false;
+      }
+    }
+
     /** Host release from the boot graph the web frontend injects:
         window.__DSH_BOOT__ = { release: { version, commit }, … }. */
     function readHostRelease() {

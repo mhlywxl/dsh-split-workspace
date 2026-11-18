@@ -161,6 +161,8 @@ DSH 0.2.x（含 Desktop 0.2.2-rc.3）带 HMR：新安装的插件会被热加载
 - 插件管理器明确提示 `restart-required`（Host 半边、被链接包的宿主模块发生变化，或包目录被移动）；
 - 安装后侧边栏底部几秒内没有出现分屏图标（少数没有 HMR 的旧版 DSH）。
 
+**0.11.1 修复：重建客户端 bundle 后不再需要重启。** 之前每次重建 `lib/client.js` 后分屏按钮、右键菜单和「设置 → 分屏工作区」都会消失，必须刷新页面或重启 DSH 才回来——原因是插件工厂重复定义只读诊断接口 `__test` 时抛出 `Cannot redefine property`，整次加载被中断（DSH 会把它记为“本页面的插件未能完成同步”）。现在每次 bundle 执行都会创建一个新的公开对象，所以**热替换重建后的 bundle、在设置 → 插件里禁用后再启用、以及从 0.11.0 热升级到 0.11.1，都在同一个页面内就地生效**，不需要刷新或重启。
+
 DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart App and Host`）。从本插件的 0.9.0 起：
 
 - 侧边栏底部 **分屏菜单 → 重启 DSH**：先确认（运行中的任务会中断），再由 Host 半调用系统级“退出并重新打开”（macOS 通过 AppleScript 正常退出，Windows 关闭窗口后终止进程并重启）。
@@ -537,6 +539,16 @@ installs/updates therefore need **no restart**. A restart is only needed when:
   host modules changed, or the package directory moved);
 - the footer split icon still has not appeared a few seconds after install (some
   older DSH builds without HMR).
+
+**Fixed in 0.11.1: rebuilding the client bundle no longer needs a restart.** A
+rebuild of `lib/client.js` used to make the footer button, the session menus and
+**Settings → Split workspace** disappear until the page was reloaded, because the
+plugin factory re-defined the read-only `__test` seam on the inherited
+`window.__dshSplitWorkspace` object and threw `Cannot redefine property` — DSH
+reported the entry as a failed page synchronization. Each bundle execution now
+publishes a fresh public object, so **a rebuilt bundle hot-swaps, a disable →
+enable cycle and the 0.11.0 → 0.11.1 hot upgrade all apply in place** without a
+reload or restart.
 
 Production DSH has **no built-in Restart menu item** (development builds do).
 Since dsh-split-workspace 0.9.0:
