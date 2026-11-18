@@ -74,6 +74,7 @@
         h("div", { className: "dsv-help-body", style: { marginTop: "6px" } }, t("helpGestures")),
         h("div", { className: "dsv-help-body", style: { marginTop: "6px" } }, t("helpDisable")),
         h("div", { className: "dsv-help-body", style: { marginTop: "2px" } }, t("helpDiagnostics")),
+        h("div", { className: "dsv-help-body", style: { marginTop: "2px" } }, t("helpRestart")),
         h("div", { className: "dsv-help-actions" },
           h("button", { type: "button", className: "dsv-chip-btn", onClick: closeHelp }, t("helpClose")),
           h("button", { type: "button", className: "dsv-chip-btn", onClick: () => setEnabled(false) }, t("disableLabel")),
@@ -286,14 +287,18 @@
         };
       }, []);
       if (ready === null) return null;
-      const desktop = typeof window !== "undefined" && typeof window.dshDesktop !== "undefined";
-      // DSH Desktop applies profile/plugin changes at startup, so a page reload
-      // cannot pick up a new bundle there; only a restart can. The Web GUI can
-      // apply it with a refresh. Say the right thing instead of offering a
-      // button that silently fails.
+      const desktop = desktopShell();
+      // Desktop app code is applied through the Host's HMR/rebuild path when
+      // it can be, but a Host-half or linked-package change can still need a
+      // full restart. Offer the restart itself instead of asking the user to
+      // quit the app by hand. The Web GUI reloads the page.
       return h("div", { className: "dsv-update-chip", role: "status" },
         h("span", null, t(desktop ? "updateRestart" : "updateReady", { v: ready })),
-        desktop ? null : h("button", {
+        desktop ? h("button", {
+          type: "button",
+          className: "dsv-update-chip-btn accent",
+          onClick: () => { closeLauncher(); openRestartDialog(); },
+        }, t("restartApp")) : h("button", {
           type: "button",
           className: "dsv-update-chip-btn accent",
           onClick: () => { try { location.reload(); } catch {} },

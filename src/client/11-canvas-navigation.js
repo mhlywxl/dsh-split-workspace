@@ -471,6 +471,10 @@
       reloadClient() {
         return safeCall("reloadClient()", () => { try { location.reload(); } catch {} return true; }, false);
       },
+      /** Close and reopen DSH Desktop so changes that need a full restart load. */
+      restartApp() {
+        return safeCall("restartApp()", () => { restartApplication(); return true; }, false);
+      },
       /** Sessions waiting for a second pick before the split starts. */
       pending() {
         return safeCall("pending()", () => pendingSplitStore.ids(), []);

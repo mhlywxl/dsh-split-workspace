@@ -49,7 +49,7 @@ dsh --profile web
 
 1. 打开 DSH Desktop，侧边栏 **插件市场**，搜索 `dsh-split-workspace` 并安装；或进入 **插件 → 添加插件 → 安装第三方插件**，填入包名。
 2. 打开 **设置 → 插件**，启用 `dsh-split-workspace`。
-3. **完全退出并重开 DSH Desktop**，让新的客户端 bundle 生效。
+3. 安装完成后插件通常会被 DSH 的 HMR 立即加载，无需重启；如果几秒后侧边栏底部仍没有分屏图标，再完全退出并重开 DSH Desktop（插件加载后，菜单/更新提示也提供「重启 DSH」入口）。
 
 > 桌面端的 `desktop` profile 由 Electron 应用独占管理。不要在终端执行 `dsh plugin --profile desktop add ...`，该命令会拒绝执行；桌面端请用上面的插件市场 / 添加插件界面。
 
@@ -59,15 +59,15 @@ dsh --profile web
 2. DSH Desktop → **插件 → 添加插件 → 安装第三方插件**：
    - 优先填 `.tgz` 的**绝对路径**（安装器会识别为「压缩包」）；
    - 如果当前版本只接受目录，先把 `.tgz` 解压，再填解压后的目录路径（目录根下要有 `package.json`）。
-3. 在 **设置 → 插件** 启用，完全退出并重开 DSH Desktop。
+3. 在 **设置 → 插件** 启用；通常会被 HMR 立即加载。若侧边栏底部没有出现分屏图标，完全退出并重开 DSH Desktop，或使用插件菜单里的「重启 DSH」。
 4. 离线机器不需要网络；插件运行时不联网。
 
 ### 启用与验证
 
-- 打开 **设置 → 插件**，确认 `dsh-split-workspace` 已启用；桌面端需完整重启，Web 端需重启 `dsh web` 并刷新。
+- 打开 **设置 → 插件**，确认 `dsh-split-workspace` 已启用。DSH 0.2.x 会通过 HMR 热加载新安装的插件；如果没有出现界面，见下方「更新、重载与重启」。
 - 分屏入口：点击侧边栏底部（设置旁）的分屏图标，或把侧边栏里的会话拖到对话区。
 - 打开浏览器/桌面端控制台执行 `window.__dshSplitWorkspace.health()`，可看到版本、窗格数和几何状态。
-- 如果看不到分屏入口：确认至少有 2 个会话、插件未处于安全模式，并检查 DSH 版本是否匹配。
+- 如果看不到分屏入口：确认插件已启用且没有报错；如果侧边栏底部的 footer 没有渲染，插件会在对话区左下角显示兜底的分屏按钮。
 
 ### 开始分屏
 
@@ -112,12 +112,12 @@ dsh --profile web
 
 ## 性能模式与卡顿排查
 
-在侧边栏底部分屏按钮的菜单里点 **性能模式**（也可用 `window.__dshSplitWorkspace.setPerformanceMode(true)`，设置会持久化）。开启后：
+**性能模式默认开启**（从 0.9.0 起；显式关过一次的保留关闭状态）。在侧边栏底部分屏按钮的菜单里点 **性能模式** 可切换（也可用 `window.__dshSplitWorkspace.setPerformanceMode(true/false)`，设置会持久化）。开启后：
 
 - 关闭所有窗格 / 浮窗 / 菜单 / 提示的动画、过渡、卡片阴影和焦点光晕，并停掉工具行跑马灯动画。
 - 关闭**每个窗格的 composer 几何测量 MutationObserver**。这是最可疑的开销之一：流式输出每个 token 都会改动窗格 DOM，旧逻辑会在每次改动时排队测量（`getBoundingClientRect` + 样式读取），窗格越多越明显；性能模式改为 ResizeObserver + 1.5s 轮询。
 - 暂停 TOC 握把同步（`dsh-prompt-history` 的 ☰ 定位）、压缩结果监听、浮窗位置巡检、右侧栏 800ms 轮询（保留 resize 监听），几何测量从 1s 降到 3.5s，侧栏会话扫描从 200ms 降到 1s。
-- 拖动窗格时不再克隆整段对话 DOM，只显示标题卡预览。
+- 拖动会话/窗格时**完全不渲染缩略图预览**（不克隆对话 DOM，也没有逐帧移动的预览窗口）；拖入目标、布局预览和放置反馈仍然保留。
 - 真实会话、输入、停止、审批、分屏 / 浮窗 / 系统窗口功能全部保留。
 
 **仍然可能卡的原因**：每个窗格都是一个完整的原生对话视图，N 个会话同时流式输出就是 N 份 React/DOM 渲染与滚动更新，这是 DSH 客户端本身的主要成本，插件无法消除（除非上游支持离屏暂停/虚拟化）。在 Windows + 低单核性能的机器上，建议同时保持 2–3 个活动窗格、少开浮窗、把不用的分屏最小化；输入框可切到紧凑 TUI 模式；如果装了 `dsh-prompt-history`，它的 TOC 同步在性能模式下会被暂停。
@@ -126,11 +126,19 @@ dsh --profile web
 
 ## 更新、重载与重启
 
-- DSH 桌面版的 profile **只在启动时应用插件/客户端变更**（插件管理器安装完会提示“请重启 DSH 使更改生效”）。刷新页面 / 重载界面**不能**加载新的插件 bundle：运行中更新会让该插件停在“等待重启”状态。
-- 更新后的正确操作：**退出 DSH 并重新打开**（Windows 从托盘 / 开始菜单彻底退出；macOS 用 ⌘Q）。
-- 本插件会尽量提醒：从 0.8.0 起，运行中的宿主会读取磁盘上的 `package.json`；一旦发现版本比当前页面新，右下角出现 **“已安装 vX，请重启 DSH 后生效”**，点 **知道了** 可关闭该版本的提醒。首次安装时插件客户端尚未加载，只能按 DSH 插件管理器的提示重启。
-- 底部菜单的 **刷新界面** 只重新加载页面（适合浮层卡住、布局异常），不会应用插件更新；Web 版可以用它加载新的客户端 bundle。
-- Host 半边（新增 HTTP 路由等）同样需要完整重启 DSH。
+DSH 0.2.x（含 Desktop 0.2.2-rc.3）带 HMR：新安装的插件会被热加载，重建后的客户端 bundle 也会自动替换，**大多数安装/更新不需要重启 DSH**。以下情况才需要重启：
+
+- 插件管理器明确提示 `restart-required`（Host 半边、被链接包的宿主模块发生变化，或包目录被移动）；
+- 安装后侧边栏底部几秒内没有出现分屏图标（少数没有 HMR 的旧版 DSH）。
+
+DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart App and Host`）。从本插件的 0.9.0 起：
+
+- 侧边栏底部 **分屏菜单 → 重启 DSH**：先确认（运行中的任务会中断），再由 Host 半调用系统级“退出并重新打开”（macOS 通过 AppleScript 正常退出，Windows 关闭窗口后终止进程并重启）。
+- 检测到磁盘版本比页面新时，右下角的更新提示直接提供 **重启 DSH** 按钮；Web 版提供 **刷新页面**。
+- 也可以用 `window.__dshSplitWorkspace.restartApp()`，或按老办法手动退出后重新打开：Windows 从托盘/开始菜单彻底退出，macOS 用 ⌘Q。
+- 底部菜单的 **刷新界面** 只重新加载页面（适合浮层卡住、布局异常），不会应用需要重启的 Host 变化。
+- 首次安装时插件客户端可能尚未加载，因此插件自身无法显示重启按钮；插件管理器会在安装结果里提示重启，按提示或手动退出重开即可。
+- **安装后看不到分屏入口时，先尝试刷新页面而不是重启**：DSH Desktop 生产版没有页面刷新菜单，但自带 **开发者工具**（macOS `⌘⌥I`，Windows `Ctrl+Shift+I`，或菜单 View → Toggle Developer Tools）；在开发者工具里点刷新按钮、按 `⌘R` / `F5`，或在 Console 执行 `location.reload()`，都会重新加载页面并取回最新的插件图，通常无需重启 DSH。仍不生效再完全退出重开。
 
 ## 功能
 
@@ -140,8 +148,9 @@ dsh --profile web
 - **浮窗模式**：右键会话 → 「进入浮窗」，把会话变成可拖动、可缩放的独立窗口；标题栏 ⇲ 放回分屏、✕ 关闭，浮窗位置/大小/层叠顺序持久化。
 - **分屏 ⇄ 浮窗双向切换**：同一会话互斥存在于一种形态；进入浮窗自动移出分屏，回到分屏自动关闭浮窗。
 - **系统窗口**：右键会话 → 「在系统窗口打开」，在系统默认浏览器中打开只含该会话的独立窗口；原生关闭 / 最小化 / 最大化 / 全屏，打开时自动从分屏和浮窗移出。
-- **性能模式**：一键关闭动画、阴影、跑马灯和多个后台轮询/观察器，适合低配或 Windows 上多窗格卡顿的场景；设置持久化。
-- **更新提示 / 刷新界面**：检测到磁盘上的新版本时右下角提示「请重启 DSH 后生效」，分屏菜单提供「刷新界面」快捷入口（只刷新 UI，不应用插件更新）。
+- **性能模式（默认开启）**：一键关闭动画、阴影、跑马灯和多个后台轮询/观察器，适合低配或 Windows 上多窗格卡顿的场景；设置持久化。性能模式下**不再渲染拖动会话时的缩略图预览**（拖入目标与放置反馈保留），可以再明显减少拖动时的 DOM/合成开销。
+- **更新提示 / 重启 DSH / 刷新界面**：检测到磁盘上的新版本时右下角提示，并提供「重启 DSH」（桌面版）或「刷新页面」（Web 版）；分屏菜单同时提供「刷新界面」与「重启 DSH」。
+- **兜底分屏入口**：如果所在 DSH 布局没有渲染侧边栏 footer（或 footer 被隐藏），插件会在对话区左下角显示一个分屏按钮，保证菜单仍可打开。
 - **一键重置**：清空插件相关的 localStorage / sessionStorage、布局、崩溃保护和临时缓存，避免异常状态卡住分屏。
 - **不限数量的原生窗格**：没有四窗格上限，窗口放得下多少会话就能开多少。
 - **自动布局**：2 个窗格左右分栏，3 个呈 L 形，4 个田字 2×2，5 个以上按行优先的均衡网格排列。
@@ -184,7 +193,8 @@ dsh --profile web
 - `window.__dshSplitWorkspace.openSystemWindow(sessionId)`：在系统窗口打开该会话（宿主生成已认证 URL）。
 - `window.__dshSplitWorkspace.setPerformanceMode(true/false)`：开关性能模式（持久化）。
 - `window.__dshSplitWorkspace.performanceMode()`：当前是否处于性能模式。
-- `window.__dshSplitWorkspace.reloadClient()`：刷新页面（桌面版不会加载新的插件 bundle，更新需重启 DSH）。
+- `window.__dshSplitWorkspace.reloadClient()`：刷新页面。
+- `window.__dshSplitWorkspace.restartApp()`：退出并重新打开 DSH 桌面版（需要完整重启时使用）。
 - `window.__dshSplitWorkspace.pending()`：当前待分屏的会话 id。
 - `window.__dshSplitWorkspace.openAddSplitDialog()`：打开多选添加分屏弹框。
 - `window.__dshSplitWorkspace.arrange("auto")`：重新适配自动布局（旧模式名会被接受并忽略）。
@@ -323,7 +333,7 @@ dsh --profile web
 
 1. Open DSH Desktop → **Plugin market** in the sidebar, search for `dsh-split-workspace`, and install it. Or use **Plugins → Add plugin → Install a third-party plugin** and enter the package name.
 2. Open **Settings → Plugins** and enable `dsh-split-workspace`.
-3. **Quit and reopen DSH Desktop completely** so the new client bundle is loaded.
+3. DSH's HMR normally loads a newly installed plugin immediately, so no restart is needed. If the split icon still does not appear in the sidebar footer after a few seconds, quit and reopen DSH Desktop completely (the plugin menu and update chip also offer **Restart DSH**).
 
 > The `desktop` profile is owned by the Electron app. Do **not** run `dsh plugin --profile desktop add ...` in a terminal; it is rejected. Use the in-app plugin market / Add plugin UI instead.
 
@@ -333,15 +343,15 @@ dsh --profile web
 2. DSH Desktop → **Plugins → Add plugin → Install a third-party plugin**:
    - prefer the **absolute path to the `.tgz`** (the installer recognises it as a tarball);
    - if that build only accepts directories, extract the `.tgz` and enter the extracted directory (its root must contain `package.json`).
-3. Enable it in **Settings → Plugins**, then quit and reopen DSH Desktop.
+3. Enable it in **Settings → Plugins**; HMR usually loads it immediately. If the footer split icon does not appear, quit and reopen DSH Desktop, or use **Restart DSH** in the plugin menu.
 4. The offline machine needs no network access; the plugin makes no runtime requests.
 
 **Enable and verify**
 
-- **Settings → Plugins** must show `dsh-split-workspace` enabled. Restart Desktop completely, or restart `dsh web` and refresh the page for Web.
+- **Settings → Plugins** must show `dsh-split-workspace` enabled. DSH 0.2.x hot-loads newly installed plugins through HMR; if the UI still does not appear, see “Updates, reload and restart”.
 - Entry points: the split icon in the sidebar footer (beside Settings), or drag a conversation from the sidebar onto the conversation column.
 - Run `window.__dshSplitWorkspace.health()` in the browser/desktop console to see the version, pane count and geometry.
-- If the split entry is missing: make sure at least two sessions exist, the plugin is not in safe mode, and re-check the enable/restart steps.
+- If the split entry is missing: make sure the plugin is enabled and has no error. When the stock sidebar footer does not render this plugin's action, the plugin shows a fallback split button at the conversation area's bottom-left corner.
 
 **Start splitting**
 
@@ -425,8 +435,10 @@ logic stays unchanged.
 
 ### Performance mode and lag analysis
 
-Open the sidebar-footer split menu and pick **Performance mode** (or run
-`window.__dshSplitWorkspace.setPerformanceMode(true)`; it persists). It turns off:
+**Performance mode is ON by default** since 0.9.0 (an explicit off choice is
+kept). Open the sidebar-footer split menu and pick **Performance mode**, or run
+`window.__dshSplitWorkspace.setPerformanceMode(true/false)`; it persists. It
+turns off:
 
 - every pane / float / menu / chip animation, transition, card shadow, focus
   glow and running-row shimmer;
@@ -438,7 +450,9 @@ Open the sidebar-footer split menu and pick **Performance mode** (or run
   position polling and the 800 ms right-sidebar poll (resize listeners stay);
   geometry polling drops from 1 s to 3.5 s and sidebar session scraping from
   200 ms to 1 s;
-- pane-drag previews no longer clone the conversation DOM — only the title card.
+- the floating drag-preview thumbnail for sessions and panes is not rendered at
+  all — no DOM clone, no per-frame thumbnail positioning; drop targets and the
+  layout reflow hole still work.
 
 Real conversations, composers, approval flows, split/float/system-window
 features all stay available.
@@ -454,21 +468,37 @@ compare DevTools Performance long tasks with the mode on/off.
 
 ### Updates, reload and restart
 
-- A DSH Desktop profile **applies plugin/client changes only at startup** (the
-  plugin manager says “restart DSH to apply”). Refreshing the page / reloading
-  the interface **cannot** load a new plugin bundle: updating while running
-  parks the plugin in a restart-required state.
-- The correct update step is to **quit DSH completely and reopen it** (Windows:
-  exit from the tray/Start menu; macOS: ⌘Q).
-- The plugin reminds you when it can: from 0.8.0 the running Host reads the
-  on-disk `package.json`, and when it sees a version newer than the page it
-  shows “Version vX is installed — restart DSH to apply” with **Got it** to
-  dismiss that version. A fresh install cannot show this because the plugin
-  client is not loaded yet — follow the built-in manager notice and restart.
-- The launcher's **Refresh interface** only reloads the page (useful for a stuck
-  overlay or layout glitch); it does not apply plugin updates. In the Web
-  profile it does load a new client bundle.
-- Host-half changes (new HTTP routes, etc.) also require a full DSH restart.
+DSH 0.2.x (including Desktop 0.2.2-rc.3) ships HMR: a newly installed plugin is
+hot-loaded, and a rebuilt client bundle is swapped into the open page. Most
+installs/updates therefore need **no restart**. A restart is only needed when:
+
+- the plugin manager reports `restart-required` (Host-half or linked-package
+  host modules changed, or the package directory moved);
+- the footer split icon still has not appeared a few seconds after install (some
+  older DSH builds without HMR).
+
+Production DSH has **no built-in Restart menu item** (development builds do).
+Since dsh-split-workspace 0.9.0:
+
+- **Split menu → Restart DSH** confirms first (running tasks are interrupted),
+  then the Host half closes and reopens the desktop app at the OS level (a
+  normal AppleScript quit on macOS; close-then-terminate and relaunch on
+  Windows).
+- The update chip offers **Restart DSH** on Desktop and **Reload page** in the
+  Web GUI.
+- `window.__dshSplitWorkspace.restartApp()` does the same. Manually: Windows —
+  quit from the tray/Start menu; macOS — ⌘Q; then open DSH again.
+- **Refresh interface** only reloads the page (useful for a stuck overlay or a
+  layout glitch); it does not apply changes that need a full restart.
+- On a first install the plugin client is not running yet, so it cannot show
+  its own restart button; follow the plugin manager's restart notice or quit
+  and reopen DSH manually.
+- **If the split entry is missing after a hot install, try a page reload before a
+  restart**: production DSH has no Reload menu item, but it ships Developer
+  Tools (macOS `⌘⌥I`, Windows `Ctrl+Shift+I`, or View → Toggle Developer Tools).
+  Use the reload button in Developer Tools, press `⌘R` / `F5`, or run
+  `location.reload()` in its Console to reload the page and fetch the current
+  plugin graph — usually no DSH restart is needed. Quit and reopen only if that still fails.
 
 ### Features
 
@@ -478,8 +508,9 @@ compare DevTools Performance long tasks with the mode on/off.
 - **Floating windows** — right-click a conversation → Enter floating window turns it into a movable, resizable window; Dock to split / ✕ in its header switch it back or close it, and geometry persists.
 - **Split ⇄ float switching** — one conversation lives in exactly one mode; entering a float detaches it from the split, docking it back closes the float.
 - **System window** — right-click → Open in system window opens the conversation alone in a separate OS window (the default browser on Desktop) with native close / minimize / maximize / fullscreen; it is detached from split and float first.
-- **Performance mode** — one switch drops animations, shadows, shimmer and several background observers/polls for low-power or laggy Windows machines; the setting persists.
-- **Update chip / refresh interface** — a newer on-disk version shows a corner chip asking for a DSH restart, and the split menu offers Refresh interface (UI reload only, not a plugin update).
+- **Performance mode (on by default)** — one switch drops animations, shadows, shimmer and several background observers/polls for low-power or laggy Windows machines; the setting persists. In this mode the floating drag-preview thumbnail is not rendered at all (drop targets and placement feedback stay).
+- **Update chip / Restart DSH / Refresh interface** — a newer on-disk version shows a corner chip with **Restart DSH** on Desktop or **Reload page** in the Web GUI; the split menu also offers Restart DSH and Refresh interface.
+- **Fallback split entry** — when the host layout does not render the sidebar footer action (or hides it), the plugin shows a split button at the conversation area's bottom-left corner so the menu stays reachable.
 - **One-click reset** — wipes plugin localStorage/sessionStorage, layout, crash guard and temporary caches.
 - **Unlimited native panes** — no four-pane cap; add as many conversations as
   the window can show.
@@ -579,8 +610,9 @@ architecture the upstream plugin uses.
   conversation in a separate system window (Host-minted authenticated URL).
 - `window.__dshSplitWorkspace.setPerformanceMode(true/false)` /
   `performanceMode()` — toggle/inspect the persisted performance mode.
-- `window.__dshSplitWorkspace.reloadClient()` — reload the page (on Desktop this
-  does not load a new plugin bundle; restart DSH to update).
+- `window.__dshSplitWorkspace.reloadClient()` — reload the page.
+- `window.__dshSplitWorkspace.restartApp()` — close and reopen DSH Desktop
+  (for the rare changes that need a full restart).
 - `window.__dshSplitWorkspace.pending()` — conversations waiting for a second
   pick before the split starts.
 - `window.__dshSplitWorkspace.openAddSplitDialog()` — open the multi-select add

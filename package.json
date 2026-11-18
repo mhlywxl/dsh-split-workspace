@@ -1,6 +1,6 @@
 {
   "name": "dsh-split-workspace",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "type": "module",
   "description": "Split-screen workspace for DeepSeek Harness (DSH) Desktop: unlimited native panes, side-by-side, stacked and 2×2 grid layouts, drag to rearrange, movable floating windows, OS-level standalone system windows, and a performance mode for slow machines.",
   "icon": "./icon.svg",

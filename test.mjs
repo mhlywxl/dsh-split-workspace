@@ -11,6 +11,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { restartCommand } from "./lib/index.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
@@ -359,6 +360,12 @@ test("performance mode, update prompt and the section split", () => {
   // Observers that used to run on every streaming token are gated by the mode.
   assert(client.includes("perfTimer = performanceMode ? window.setInterval(schedule, 1500) : 0"),
     "the per-pane composer observer fallback must be perf-gated");
+  // Performance mode is the shipped default; only an explicit "0" opts out.
+  assert(client.includes('return storageGet(PERF_KEY) !== "0";'),
+    "performance mode must default to on");
+  // This mode renders no floating drag preview at all (no clone, no rAF).
+  assert(client.includes("if (performanceModeOn()) return;"),
+    "performance mode must skip the drag-preview thumbnail");
   assert(client.includes("runtime.performance === true ? 3500 : 1000"),
     "geometry polling must slow down in performance mode");
   assert(client.includes("performanceModeOn() ? 1000 : DOM_LIST_MIN_READ_MS"),
@@ -371,7 +378,7 @@ test("performance mode, update prompt and the section split", () => {
 
 test("locale dictionaries cover performance mode and the update prompt", () => {
   const client = read("lib/client.js");
-  for (const key of ["performanceMode", "performanceOn", "performanceOff", "reloadClient", "updateReady", "reloadNow", "updatedToast"]) {
+  for (const key of ["performanceMode", "performanceOn", "performanceOff", "reloadClient", "updateReady", "reloadNow", "updatedToast", "restartApp", "restartTitle", "restartBody", "restartNow", "restarting", "restartFailed", "restartUnsupported", "fallbackLauncher"]) {
     const count = client.split(key + ":").length - 1;
     assert(count >= 2, `locale key ${key} must exist in both dictionaries`);
   }
@@ -379,7 +386,7 @@ test("locale dictionaries cover performance mode and the update prompt", () => {
 
 test("README documents performance mode, reload and the source split", () => {
   const readme = read("README.md");
-  for (const text of ["性能模式", "性能模式与卡顿排查", "刷新界面", "重启 DSH", "工程结构", "源码拆分", "Performance mode", "Source layout", "build-client.mjs"]) {
+  for (const text of ["性能模式", "性能模式默认开启", "性能模式与卡顿排查", "刷新界面", "重启 DSH", "兜底", "工程结构", "源码拆分", "Performance mode", "Performance mode is ON by default", "Restart DSH", "fallback split", "Source layout", "build-client.mjs"]) {
     assert(readme.includes(text), `README is missing ${text}`);
   }
 });
@@ -444,6 +451,40 @@ test("README documents the system window", () => {
   const readme = read("README.md");
   for (const text of ["系统窗口", "在系统窗口打开", "默认浏览器", "openSystemWindow(sessionId)", "System window", "default browser", "Open in system window"]) {
     assert(readme.includes(text), `README is missing ${text}`);
+  }
+});
+
+test("restart entry: Host route and Desktop OS-level quit/relaunch", () => {
+  const host = read("lib/index.js");
+  for (const token of ["/dsv/restart", "RESTART_COOLDOWN_MS", "runningInDesktop", "restartCommand", "osascript", "Start-Process", "x-dsv-restart"]) {
+    assert(host.includes(token), `missing restart Host support: ${token}`);
+  }
+  const client = read("lib/client.js");
+  for (const token of ["/dsv/restart", "x-dsv-restart", "restartApplication", "openRestartDialog", "RestartDialog", "restartApp()"]) {
+    assert(client.includes(token), `missing client restart entry: ${token}`);
+  }
+});
+
+test("restart helper builds a platform quit+relaunch command", () => {
+  const command = restartCommand();
+  assert(typeof command.command === "string" && command.command !== "", "restart command is missing");
+  assert(Array.isArray(command.args) && command.args.length > 0, "restart arguments are missing");
+  const line = command.args.join(" ");
+  assert(line.includes(String(process.ppid)), "the restart helper must target the Electron main process");
+  if (process.platform === "darwin") {
+    assert(line.includes("osascript") && line.includes("com.deepseek.dsh"), "macOS must ask DSH to quit through AppleScript");
+    assert(line.includes("open "), "macOS must reopen the app bundle");
+  }
+  if (process.platform === "win32") {
+    assert(command.command === "powershell.exe", "Windows must use PowerShell");
+    assert(line.includes("Stop-Process") && line.includes("Start-Process"), "Windows must stop and relaunch the app");
+  }
+});
+
+test("fallback launcher keeps the split menu reachable without the sidebar footer", () => {
+  const client = read("lib/client.js");
+  for (const token of ["dsv-fallback-launcher", "LauncherFallback", "fallbackLauncher", "getBoundingClientRect().width > 0"]) {
+    assert(client.includes(token), `missing fallback launcher support: ${token}`);
   }
 });
 

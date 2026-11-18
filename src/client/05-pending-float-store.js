@@ -84,6 +84,9 @@
     function openAddSplitDialog(source) {
       setLauncherState({ mode: "dialog", rect: null, source: source === "footer" ? "footer" : "session" });
     }
+    function openRestartDialog() {
+      setLauncherState({ mode: "restart", rect: null, source: "footer" });
+    }
 
     // ---------------------------------------------------------------------
     // floating windows (0.6.0)

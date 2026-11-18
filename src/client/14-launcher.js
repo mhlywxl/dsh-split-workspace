@@ -26,6 +26,86 @@
       return true;
     }
 
+    /** DSH Desktop exposes its preload product API; the browser Web GUI does
+        not. Restarting the app is only possible from the Desktop. */
+    function desktopShell() {
+      return typeof window !== "undefined" && typeof window.dshDesktop !== "undefined";
+    }
+
+    /** Ask the Host half to close and reopen DSH. The Host is a Node child of
+        the Desktop shell, so it can drive an OS-level quit+relaunch even
+        though production DSH has no in-app restart entry. */
+    function restartApplication() {
+      if (!desktopShell()) {
+        showPaneToast(t("restartUnsupported"), true);
+        return;
+      }
+      showPaneToast(t("restarting"), true);
+      try {
+        fetch("/dsv/restart", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-dsv-restart": "1" },
+          body: "{\"confirm\":true}",
+          cache: "no-store",
+          keepalive: true,
+        }).then((response) => response.json().catch(() => null)).then((payload) => {
+          if (payload === null || payload === undefined || payload.ok !== true) throw new Error("restart");
+        }).catch(() => {
+          showPaneToast(t("restartFailed"), true);
+        });
+      } catch {
+        showPaneToast(t("restartFailed"), true);
+      }
+    }
+
+    /** Confirmation before the app closes: running tasks are interrupted. */
+    function RestartDialog() {
+      React.useEffect(() => {
+        const onKeyDown = (event) => {
+          if (event.key !== "Escape") return;
+          event.preventDefault();
+          event.stopPropagation();
+          closeLauncher();
+        };
+        document.addEventListener("keydown", onKeyDown, true);
+        return () => document.removeEventListener("keydown", onKeyDown, true);
+      }, []);
+      return h("div", {
+        className: "dsv-modal-backdrop",
+        onPointerDown: (event) => {
+          if (event.target === event.currentTarget) closeLauncher();
+        },
+      },
+        h("div", {
+          className: "dsv-modal",
+          role: "dialog",
+          "aria-modal": "true",
+          "aria-label": t("restartTitle"),
+        },
+          h("div", { className: "dsv-modal-head" },
+            h("span", { className: "dsv-modal-title" }, t("restartTitle")),
+            h("button", {
+              type: "button",
+              className: "dsv-modal-close",
+              title: t("addSplitCancel"),
+              "aria-label": t("addSplitCancel"),
+              onClick: closeLauncher,
+            }, "×"),
+          ),
+          h("div", { className: "dsv-modal-hint" }, t("restartBody")),
+          h("div", { className: "dsv-modal-foot", style: { borderTop: "none", paddingTop: 0 } },
+            h("span", { className: "dsv-modal-count" }, ""),
+            h("button", { type: "button", className: "dsv-modal-btn", onClick: closeLauncher }, t("addSplitCancel")),
+            h("button", {
+              type: "button",
+              className: "dsv-modal-btn accent",
+              onClick: () => { closeLauncher(); restartApplication(); },
+            }, t("restartNow")),
+          ),
+        ),
+      );
+    }
+
     /** Aspect ratio of the conversation column; only decides columns vs rows
         for a two-pane split (the same 1.2 fallback settleAuto uses). */
     function splitColumnAspect() {
@@ -561,6 +641,7 @@
             try {
               if (target.closest(".dsv-launcher-menu") !== null) return;
               if (target.closest(".dsv-footer-btn") !== null) return;
+              if (target.closest(".dsv-fallback-launcher") !== null) return;
             } catch {}
           }
           closeLauncher();
@@ -610,7 +691,61 @@
         row("performance", "⚡", t("performanceMode") + (runtime.performance === true ? " ✓" : ""),
           () => { closeLauncher(); setPerformanceMode(runtime.performance !== true); }),
         row("reload", "↻", t("refreshInterface"), () => { closeLauncher(); try { location.reload(); } catch {} }),
+        desktopShell()
+          ? row("restart", "⏻", t("restartApp"), () => { closeLauncher(); openRestartDialog(); })
+          : null,
         row("reset", "↺", t("menuResetSplit"), () => { closeLauncher(); resetSplitEnvironment(); }, { danger: true }),
+      );
+    }
+
+    /** Fallback entry point when the stock sidebar footer does not render this
+        plugin's action (collapsed/absent sidebar, a layout that replaces the
+        footer, or an older host whose footer slot is empty). The launcher menu
+        stays reachable from the conversation column's bottom-left corner. */
+    function LauncherFallback() {
+      const runtime = useRuntime();
+      const launcher = useLauncherState();
+      const pending = usePendingSplit();
+      const [footerVisible, setFooterVisible] = React.useState(true);
+      React.useEffect(() => {
+        const check = () => {
+          let visible = false;
+          try {
+            const button = document.querySelector(".dsv-footer-btn");
+            visible = button !== null && button !== undefined && button.getBoundingClientRect().width > 0;
+          } catch {}
+          setFooterVisible(visible);
+        };
+        check();
+        const timer = window.setInterval(check, runtime.performance === true ? 3000 : 1200);
+        return () => { try { window.clearInterval(timer); } catch {} };
+      }, [runtime.performance, runtime.enabled]);
+      if (runtime.enabled !== true || footerVisible || launcher.mode !== "closed") return null;
+      // Own the conversation column's bottom-left corner when its bounds are
+      // known (so the fallback never sits on the stock sidebar controls); fall
+      // back to the viewport corner when geometry is not measured yet.
+      let style = null;
+      try {
+        const bounds = measureColumnBounds();
+        if (bounds !== null && bounds !== undefined && bounds.ok === true) {
+          style = {
+            left: Math.max(8, bounds.left) + 16 + "px",
+            bottom: Math.max(8, bounds.bottom) + 16 + "px",
+          };
+        }
+      } catch {}
+      return h("button", {
+        type: "button",
+        className: "dsv-fallback-launcher",
+        style,
+        title: t("menuTitle"),
+        "aria-label": t("fallbackLauncher"),
+        "aria-haspopup": "menu",
+        onClick: (event) => openLauncherMenu(event.currentTarget),
+      },
+        h(SplitIconV, { size: 15 }),
+        h("span", { className: "dsv-fallback-label" }, t("fallbackLauncher")),
+        pending.length > 0 ? h("span", { className: "dsv-footer-badge" }, String(pending.length)) : null,
       );
     }
 
@@ -625,7 +760,8 @@
       }), []);
       if (launcher.mode === "menu") return h(SplitLauncherMenu, { request: launcher });
       if (launcher.mode === "dialog") return h(AddSplitDialog, null);
-      return null;
+      if (launcher.mode === "restart") return h(RestartDialog, null);
+      return h(LauncherFallback, null);
     }
 
 

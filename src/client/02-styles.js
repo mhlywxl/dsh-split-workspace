@@ -123,6 +123,23 @@
       box-shadow: 0 0 0 1.5px var(--dsw-alias-bg-layer-1, var(--dsw-alias-bg-base));
     }
 
+    /* Fallback launcher: shown only when the stock sidebar footer does not
+       render the plugin's action, so the split menu stays reachable from the
+       conversation column's bottom-left corner. */
+    .dsv-fallback-launcher {
+      position: fixed; left: 16px; bottom: 16px; z-index: 130;
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 30px; padding: 0 10px; border-radius: 9px;
+      border: 1px solid var(--dsw-alias-border-l2);
+      background: var(--dsw-alias-bg-layer-1, var(--dsw-alias-bg-base));
+      color: var(--dsw-alias-label-secondary);
+      font-family: var(--dsw-font-family, system-ui, sans-serif); font-size: 12px;
+      cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    }
+    .dsv-fallback-launcher:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+    .dsv-fallback-label { white-space: nowrap; }
+    html[data-dsv-performance="1"] .dsv-fallback-launcher { box-shadow: none; }
+
     /* ---- 0.5.0 launcher: the sidebar footer menu and the multi-select
        "add split" dialog. Both mount through the shell overlay seat, so they
        are never clipped by the sidebar column or the split overlay. ---- */

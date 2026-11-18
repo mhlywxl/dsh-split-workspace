@@ -3,7 +3,7 @@
     // ---------------------------------------------------------------------
 
     const PLUGIN_ID = "dsh-split-workspace";
-    const PLUGIN_VERSION = "0.8.0";
+    const PLUGIN_VERSION = "0.9.0";
     const LOG_PREFIX = "[dsh-split-workspace]";
     const TREE_KEY = "dsh.split-workspace.tree.v1";
     const OPEN_KEY = "dsh.split-workspace.open.v2";
@@ -56,9 +56,11 @@
       storageSet(MIN_KEY, value === true ? "1" : "0");
     }
     /** Performance mode is a persisted, user-visible preference: it trades
-        optional observers / animations for responsiveness on slow machines. */
+        optional observers / animations for responsiveness on slow machines.
+        It is ON by default; only an explicit "0" turns it off, so existing
+        users who already chose the fast mode keep a normal experience. */
     function readPerformanceMode() {
-      return storageGet(PERF_KEY) === "1";
+      return storageGet(PERF_KEY) !== "0";
     }
     function writePerformanceMode(value) {
       storageSet(PERF_KEY, value === true ? "1" : "0");
@@ -258,6 +260,12 @@
 
     function beginDragPreview(title, hint, sourceEl, size) {
       endDragPreview();
+      // Performance mode: the floating preview is the expensive part of a
+      // drag. It clones (or builds) a whole conversation window and moves it
+      // with the pointer on every frame, so the fast mode skips it entirely.
+      // Dragging still works: the drop target and the reflow hole stay, only
+      // the thumbnail preview disappears.
+      if (performanceModeOn()) return;
       // A pane drag carries a real miniature of the conversation window: clone
       // the live pane, scale it down, and hold the clone as the floating
       // preview. Sidebar drags of an already-open session find their pane the
@@ -269,8 +277,7 @@
           if (pane === null && sourceEl.nodeType === 1 && sourceEl.classList && sourceEl.classList.contains("dsv-pane")) pane = sourceEl;
         }
       } catch {}
-      const simpleOnly = (typeof window !== "undefined" && window.__DSV_SIMPLE_PREVIEW === true)
-        || performanceModeOn();
+      const simpleOnly = typeof window !== "undefined" && window.__DSV_SIMPLE_PREVIEW === true;
       const realThumb = typeof window !== "undefined" && window.__DSV_REAL_THUMB === true;
       try {
         if (simpleOnly !== true && pane !== null && pane !== undefined) {
@@ -501,6 +508,7 @@
       helpGestures: "Use the sidebar-footer split menu (Add split / Exit split / Minimize / Reset split) or drag a conversation from the sidebar onto the page to start a split. Right-click a conversation for Add to split / Leave split / Enter floating window; a floating window's Dock to split button puts it back. Drag a pane by its header to move it: its slot closes and a dashed hole previews where it will land. Drag the dividers to resize. ✕ closes a pane.",
       helpDisable: "Disable split view: run window.__dshSplitWorkspace.setEnabled(false), or set localStorage 'dsh.split-workspace.enabled.v1' to \"0\". Reset the layout: window.__dshSplitWorkspace.reset().",
       helpDiagnostics: "Diagnostics: window.__dshSplitWorkspace.health() — see the README section “Safety, recovery and diagnostics”.",
+      helpRestart: "If an update or a full-restart change does not take effect, open the split menu and choose “Restart DSH” (Desktop), or quit DSH and open it again. Installed plugins are normally loaded live by DSH's HMR; the restart entry is the fallback.",
       tipTitle: "Split view is on",
       tipBody: "Alt+T toggles the compact composer · Alt+Shift+←/→/↑/↓ moves between panes · drag a conversation from the sidebar to split · ✕ closes a pane. To turn split view off, run window.__dshSplitWorkspace.setEnabled(false).",
       compactionDone: "Context compacted — the summary is in the conversation.",
@@ -554,8 +562,16 @@
       performanceOff: "Performance mode off",
       reloadClient: "Reload interface",
       refreshInterface: "Refresh interface",
+      restartApp: "Restart DSH",
+      restartTitle: "Restart DSH?",
+      restartBody: "This closes and reopens DeepSeek Harness so newly installed plugins and changes that need a full restart can load. Running tasks will be interrupted.",
+      restartNow: "Restart now",
+      restarting: "Restarting DSH…",
+      restartFailed: "Could not restart DSH automatically — quit DSH and open it again.",
+      restartUnsupported: "Automatic restart is available in DSH Desktop. In a browser, reload the page or restart the `dsh web` process.",
+      fallbackLauncher: "Split view",
       updateReady: "Version {v} is installed — reload to apply",
-      updateRestart: "Version {v} is installed — restart DSH to apply",
+      updateRestart: "Version {v} is installed — if the interface did not update, restart DSH",
       reloadNow: "Reload now",
       gotIt: "Got it",
       laterLabel: "Later",
@@ -617,6 +633,7 @@
       helpGestures: "点击侧边栏底部的分屏按钮打开菜单（添加分屏 / 退出分屏 / 最小化分屏 / 重置分屏），或从左侧会话列表把对话拖到页面即可分屏；右键会话可加入 / 退出分屏，也可以“进入浮窗”把会话变成独立浮窗（浮窗标题栏的“回到分屏”可放回）。拖住面板标题栏可移动面板：原位置收起，虚线空位预览落点。拖动分隔条可调整大小，✕ 关闭面板。",
       helpDisable: "停用分屏：运行 window.__dshSplitWorkspace.setEnabled(false)，或将 localStorage 'dsh.split-workspace.enabled.v1' 设为 \"0\"。重置布局：window.__dshSplitWorkspace.reset()。",
       helpDiagnostics: "诊断：window.__dshSplitWorkspace.health() — 详见 README“安全性、恢复与诊断”。",
+      helpRestart: "如果更新或需要完整重启的更改没有生效，可打开分屏菜单选择“重启 DSH”（桌面版），或退出 DSH 后重新打开。DSH 的 HMR 通常会自动加载已安装的插件；重启入口是兜底方案。",
       tipTitle: "分屏视图已开启",
       tipBody: "Alt+T 切换紧凑输入行 · Alt+Shift+←/→/↑/↓ 切换面板 · 从左侧拖入对话可分屏 · ✕ 关闭面板。如需停用，运行 window.__dshSplitWorkspace.setEnabled(false)。",
       compactionDone: "上下文已压缩 — 摘要已写入对话。",
@@ -670,8 +687,16 @@
       performanceOff: "性能模式已关闭",
       reloadClient: "重载界面",
       refreshInterface: "刷新界面",
+      restartApp: "重启 DSH",
+      restartTitle: "重启 DSH？",
+      restartBody: "将关闭并重新打开 DeepSeek Harness，以加载新安装的插件或需要完整重启的更改。正在运行的任务会被中断。",
+      restartNow: "立即重启",
+      restarting: "正在重启 DSH…",
+      restartFailed: "无法自动重启 DSH，请退出 DSH 后重新打开。",
+      restartUnsupported: "自动重启仅支持 DSH 桌面版；浏览器中请刷新页面或重启 dsh web 进程。",
+      fallbackLauncher: "分屏视图",
       updateReady: "已安装 v{v}，刷新页面生效",
-      updateRestart: "已安装 v{v}，请重启 DSH 后生效",
+      updateRestart: "已安装 v{v}，若界面未更新请重启 DSH",
       reloadNow: "刷新页面",
       gotIt: "知道了",
       laterLabel: "稍后",
