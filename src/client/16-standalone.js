@@ -150,3 +150,229 @@
         }, "×"),
       );
     }
+
+    // ---------------------------------------------------------------------
+    // native system window (0.11.0)
+    //
+    // DSH Desktop has no plugin-facing BrowserWindow API, so the Host opens the
+    // closest native equivalent: a real OS window (macOS AppKit NSWindow with a
+    // WKWebView, driven by osascript) that loads the Host's authenticated web
+    // client. The URL carries a hash marker, and this client boot turns that
+    // page into a one-conversation window: no left sidebar, the requested
+    // conversation active, and every other column (the right sidebar included)
+    // left to the stock shell.
+    // ---------------------------------------------------------------------
+
+    const SYSTEM_WINDOW_HASH = "#dsv-system-window=";
+
+    /** The session id carried by the native window URL hash, if any. */
+    function systemWindowSessionId() {
+      try {
+        const hash = String(window.location.hash || "");
+        if (!hash.startsWith(SYSTEM_WINDOW_HASH)) return null;
+        const value = decodeURIComponent(hash.slice(SYSTEM_WINDOW_HASH.length).split("&")[0] || "");
+        return isValidSessionId(value) ? value : null;
+      } catch {
+        return null;
+      }
+    }
+
+    /** Zero the sidebar grid track while keeping the solved centre and
+        right-sidebar tracks. AppFrame writes the whole track list as an inline
+        React style, so only the first track is rewritten. */
+    function zeroSystemWindowSidebarTrack() {
+      try {
+        const root = document.querySelector('[data-slot="root"]');
+        if (root === null || root === undefined) return false;
+        let frame = null;
+        for (const element of root.querySelectorAll("div[style]")) {
+          if (element.style !== undefined && element.style.gridTemplateColumns !== "") {
+            frame = element;
+            break;
+          }
+        }
+        if (frame === null) return false;
+        const value = String(frame.style.gridTemplateColumns || "");
+        if (value === "" || value.startsWith("0px ")) return true;
+        frame.style.gridTemplateColumns = "0px " + value.replace(/^\s*\S+\s+/, "");
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    /** Re-zero the track whenever React re-solves the columns (right sidebar
+        toggles, window resize, drawer mode). */
+    function watchSystemWindowLayout() {
+      let observer = null;
+      let timer = 0;
+      const attach = () => {
+        const root = document.querySelector('[data-slot="root"]');
+        if (root === null || root === undefined) return false;
+        try {
+          observer = new MutationObserver(() => { zeroSystemWindowSidebarTrack(); });
+          observer.observe(root, { attributes: true, subtree: true, attributeFilter: ["style"] });
+        } catch {}
+        zeroSystemWindowSidebarTrack();
+        return true;
+      };
+      if (!attach()) {
+        let tries = 0;
+        timer = window.setInterval(() => {
+          tries += 1;
+          if (attach() || tries >= 40) {
+            window.clearInterval(timer);
+            timer = 0;
+          }
+        }, 250);
+      }
+      return () => {
+        if (observer !== null) {
+          try { observer.disconnect(); } catch {}
+        }
+        if (timer !== 0) {
+          try { window.clearInterval(timer); } catch {}
+        }
+      };
+    }
+
+    /** Activate the requested conversation once the stock shell is ready. The
+        web client boots a fresh session first, so retry until the main view
+        actually shows the requested id. */
+    function activateSystemWindowSession(sessionId) {
+      let tries = 0;
+      const attempt = () => {
+        tries += 1;
+        if (currentSessionId() === sessionId) return;
+        openSessionInMainView(sessionId);
+        if (tries >= 12) return;
+        window.setTimeout(attempt, 350);
+      };
+      window.setTimeout(attempt, 200);
+    }
+
+    /** Boot hook: returns a disposer only in a native system window. */
+    function bootSystemWindow() {
+      const sessionId = systemWindowSessionId();
+      if (sessionId === null) return null;
+      try { document.documentElement.dataset.dsvSystemWindow = "1"; } catch {}
+      const disposeLayout = watchSystemWindowLayout();
+      activateSystemWindowSession(sessionId);
+      return disposeLayout;
+    }
+
+    // The Host owns the system windows. This store mirrors their session ids
+    // so the session menu can offer Enter / Exit; it polls only while a menu
+    // observes it, and every open/close updates it optimistically.
+    const nativeWindowStore = (() => {
+      let sessions = [];
+      const listeners = new Set();
+      let timer = 0;
+      let inflight = null;
+      const emit = () => {
+        for (const listener of [...listeners]) {
+          try { listener(); } catch {}
+        }
+      };
+      const publish = (value) => {
+        const next = [];
+        for (const id of Array.isArray(value) ? value : []) {
+          if (isValidSessionId(id) && next.indexOf(id) === -1) next.push(id);
+        }
+        const same = next.length === sessions.length && next.every((id, index) => sessions[index] === id);
+        if (same) return;
+        sessions = next;
+        emit();
+      };
+      /** Fetch the Host's window list; concurrent callers share one request.
+          The returned promise always settles, so the menu never hangs. */
+      const read = () => {
+        if (inflight !== null) return inflight;
+        inflight = Promise.resolve().then(() => {
+          try {
+            return fetch("/dsv/system-window", {
+              method: "GET",
+              cache: "no-store",
+              headers: { "x-dsv-system-window": "1" },
+            }).then((response) => response.json().catch(() => null)).then((payload) => {
+              if (payload !== null && payload !== undefined && payload.ok === true && Array.isArray(payload.sessions)) {
+                publish(payload.sessions);
+              }
+            }).catch(() => {});
+          } catch {
+            return undefined;
+          }
+        }).finally(() => { inflight = null; });
+        return inflight;
+      };
+      return {
+        getSnapshot: () => sessions,
+        subscribe(listener) {
+          if (typeof listener !== "function") return () => {};
+          listeners.add(listener);
+          if (listeners.size === 1) {
+            read();
+            timer = window.setInterval(read, 2000);
+          }
+          return () => {
+            listeners.delete(listener);
+            if (listeners.size === 0 && timer !== 0) {
+              try { window.clearInterval(timer); } catch {}
+              timer = 0;
+            }
+          };
+        },
+        has: (id) => sessions.indexOf(id) !== -1,
+        markOpen(id) {
+          if (!isValidSessionId(id) || sessions.indexOf(id) !== -1) return;
+          sessions = sessions.concat([id]);
+          emit();
+        },
+        markClosed(id) {
+          if (sessions.indexOf(id) === -1) return;
+          sessions = sessions.filter((entry) => entry !== id);
+          emit();
+        },
+        refresh: () => read(),
+      };
+    })();
+
+    /** Host action: open or close the native (OS) window for one conversation. */
+    function requestSystemWindow(sessionId, mode) {
+      if (!isValidSessionId(sessionId)) return false;
+      const closing = mode === "close";
+      if (!desktopShell()) {
+        showPaneToast(t("systemWindowUnsupported"), true);
+        return false;
+      }
+      showPaneToast(t(closing ? "systemWindowClosing" : "systemWindowOpening"), true);
+      try {
+        fetch("/dsv/system-window", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-dsv-system-window": "1" },
+          body: JSON.stringify({ sessionId, action: closing ? "close" : "open" }),
+          cache: "no-store",
+        }).then((response) => response.json().catch(() => null)).then((payload) => {
+          if (payload !== null && payload !== undefined && payload.ok === true) {
+            if (closing) {
+              nativeWindowStore.markClosed(sessionId);
+              showPaneToast(t("systemWindowNativeClosed"), true);
+            } else {
+              nativeWindowStore.markOpen(sessionId);
+              showPaneToast(t("systemWindowNativeOpened"), true);
+            }
+            return;
+          }
+          const code = payload !== null && payload !== undefined ? payload.error : undefined;
+          showPaneToast(t(code === "unsupported-platform" || code === "not-desktop"
+            ? "systemWindowUnsupported"
+            : "systemWindowFailed"), true);
+        }).catch(() => {
+          showPaneToast(t("systemWindowFailed"), true);
+        });
+      } catch {
+        showPaneToast(t("systemWindowFailed"), true);
+        return false;
+      }
+      return true;
+    }

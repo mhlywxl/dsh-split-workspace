@@ -463,6 +463,18 @@
       openIndependentWindow(sessionId) {
         return safeCall("openIndependentWindow()", () => openSystemWindow(sessionId), false);
       },
+      /** Open one conversation in a real OS window (macOS native window). */
+      openNativeWindow(sessionId) {
+        return safeCall("openNativeWindow()", () => requestSystemWindow(sessionId, "open"), false);
+      },
+      /** Close the native OS window currently showing one conversation. */
+      closeNativeWindow(sessionId) {
+        return safeCall("closeNativeWindow()", () => requestSystemWindow(sessionId, "close"), false);
+      },
+      /** Session ids whose native OS window is currently open. */
+      nativeWindows() {
+        return safeCall("nativeWindows()", () => nativeWindowStore.getSnapshot().slice(), []);
+      },
       /** Current independent-window state ({ id, minimized, maximized } or null). */
       appWindow() {
         return safeCall("appWindow()", () => (runtimeState.appWindow === null ? null : Object.assign({}, runtimeState.appWindow)), null);

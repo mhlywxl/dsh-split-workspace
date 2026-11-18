@@ -1303,6 +1303,37 @@
     }
     .dsv-help-body { color: var(--dsw-alias-label-secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
     .dsv-help-actions { display: flex; gap: 8px; margin-top: 10px; }
+    /* help-card screenshots: a wider, scrollable card with three thumbnails;
+       clicking one opens a viewport-level lightbox. No transform on the card,
+       so the fixed lightbox is not trapped in a transformed containing block. */
+    .dsv-help-card {
+      left: 0; right: 0; margin-left: auto; margin-right: auto; transform: none;
+      width: min(680px, calc(100% - 32px));
+      max-height: min(78vh, 760px); overflow: auto; overscroll-behavior: contain;
+    }
+    .dsv-help-section-title { margin-top: 10px; font-size: 12px; font-weight: 600; }
+    .dsv-help-shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+    .dsv-help-shot {
+      margin: 0; padding: 0; border: 1px solid var(--dsw-alias-border-l2); border-radius: 10px;
+      overflow: hidden; background: var(--dsw-alias-bg-base); cursor: zoom-in;
+    }
+    .dsv-help-shot:hover { border-color: var(--dsw-static-deepseek-500); }
+    .dsv-help-shot img {
+      display: block; width: 100%; height: 124px; object-fit: contain; object-position: top center;
+      background: var(--dsw-alias-bg-layer-1);
+    }
+    .dsv-help-shot figcaption {
+      font-size: 10px; line-height: 14px; padding: 4px 6px;
+      color: var(--dsw-alias-label-tertiary); text-align: center;
+    }
+    .dsv-help-lightbox {
+      position: fixed; inset: 0; z-index: 2147483000; display: flex; align-items: center; justify-content: center;
+      padding: 24px; background: rgba(0, 0, 0, 0.62); cursor: zoom-out;
+    }
+    .dsv-help-lightbox img {
+      max-width: min(92vw, 1200px); max-height: 86vh; border-radius: 12px;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35); background: var(--dsw-alias-bg-base); cursor: default;
+    }
     .dsv-pane-error {
       flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center;
       justify-content: center; gap: 8px; padding: 20px; text-align: center;
@@ -1376,6 +1407,25 @@
     .dsv-update-chip-btn.accent { background: var(--dsw-static-deepseek-500); border-color: transparent; color: #fff; }
     .dsv-update-chip-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
     html[data-dsv-performance="1"] .dsv-update-chip { box-shadow: none; }
+
+    /* Native system window (0.11.0): the OS window shows one conversation.
+       The left sidebar is removed; the right sidebar and every other column
+       stay exactly as the stock layout renders them. The frame's first grid
+       track is also zeroed by the client boot (React owns that inline style). */
+    html[data-dsv-system-window="1"] [data-slot="sidebar"],
+    html[data-dsv-system-window="1"] [data-side="sidebar"],
+    html[data-dsv-system-window="1"] [data-shell-leading],
+    html[data-dsv-system-window="1"] [data-sidebar-mask] {
+      display: none !important;
+    }
+    html[data-dsv-system-window="1"] .dsv-footer-btn,
+    html[data-dsv-system-window="1"] .dsv-fallback-launcher,
+    html[data-dsv-system-window="1"] .dsv-app-window-layer,
+    html[data-dsv-system-window="1"] .dsv-chip,
+    html[data-dsv-system-window="1"] .dsv-update-chip,
+    html[data-dsv-system-window="1"] .dsv-toast {
+      display: none !important;
+    }
     `;
 
     function insertStyle(css) {

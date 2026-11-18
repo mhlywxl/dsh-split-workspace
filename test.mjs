@@ -58,6 +58,10 @@ const SCREENSHOTS = [
   "layout-stacked.png",
   "layout-grid-2x2.png",
   "drag-pane.gif",
+  "system-window.png",
+  "help-session-menu.png",
+  "help-footer-menu.png",
+  "help-settings.png",
 ];
 
 test("package identity and public metadata", () => {
@@ -437,8 +441,6 @@ test("independent window: in-app surface, no browser route", () => {
     assert(client.includes(token), `missing independent-window feature: ${token}`);
   }
   const host = read("lib/index.js");
-  assert(!host.includes("/dsv/system-window"), "the browser system-window route must be gone");
-  assert(!host.includes("authenticatedUrl"), "the Host must not mint browser URLs for a system window");
   assert(!client.includes("dsvWindow"), "the browser standalone hash marker must be gone");
   // Pane-header drag is armed from the mousedown target instead of keeping the
   // whole header draggable: a draggable header swallowed the ✕ click whenever
@@ -451,6 +453,9 @@ test("locale dictionaries cover the independent window and settings page", () =>
   const client = read("lib/client.js");
   for (const key of [
     "menuSystemWindow", "systemWindowOpened", "systemWindowFailed", "standaloneFullscreen",
+    "menuGroup", "menuIndependentOpen", "menuIndependentClose", "menuNativeOpen", "menuNativeClose",
+    "systemWindowOpening", "systemWindowClosing", "systemWindowNativeOpened", "systemWindowNativeClosed",
+    "systemWindowUnsupported",
     "independentMinimize", "independentRestore", "independentClose",
     "settingsNav", "settingsHeading", "settingsDesc", "settingsStatus", "settingsVersion",
     "settingsPanes", "settingsPending", "settingsFloats", "settingsPerformance",
@@ -477,14 +482,119 @@ test("README documents the independent window, settings entry and changelog", ()
   const readme = read("README.md");
   for (const text of [
     "独立窗口", "在独立窗口打开", "不依赖浏览器", "openIndependentWindow", "openSystemWindow(sessionId)",
-    "系统设置入口", "设置 → 分屏工作区", "CHANGELOG.md",
+    "系统设置入口", "设置 → 分屏工作区", "CHANGELOG.md", "进入系统窗口", "分屏插件", "macOS",
     "Independent window", "in-app", "Settings entry", "Settings → Split workspace",
   ]) {
     assert(readme.includes(text), `README is missing ${text}`);
   }
   const changelog = read("CHANGELOG.md");
-  for (const version of ["0.10.0", "0.9.0", "0.8.0", "0.5.0", "0.4.3", "0.4.0"]) {
+  for (const version of ["0.11.0", "0.10.0", "0.9.0", "0.8.0", "0.5.0", "0.4.3", "0.4.0"]) {
     assert(changelog.includes("[" + version + "]"), `CHANGELOG is missing ${version}`);
+  }
+});
+
+test("native system window: Host route, macOS helper and client entry", () => {
+  const host = read("lib/index.js");
+  for (const token of [
+    "/dsv/system-window",
+    "x-dsv-system-window",
+    "authenticatedUrl",
+    "system-window.jxa",
+    "unsupported-platform",
+    "SESSION_ID_PATTERN",
+    "requestOriginAllowed",
+    "nativeWindowSessions",
+    "closeNativeSystemWindow",
+    "readWindowRequest",
+    "nativeWindows = new Map",
+  ]) {
+    assert(host.includes(token), `missing native system window Host support: ${token}`);
+  }
+  // The tokenized client URL must stay inside the Host: the renderer only
+  // learns whether the window opened.
+  assert(!/ok:\s*true[^}]*\burl:/u.test(host), "the native window URL must not be returned to the renderer");
+  const helper = read("native/system-window.jxa");
+  for (const token of [
+    "NSWindow", "WKWebView", "NSApplication", "loadRequest",
+    "NSWindowStyleMaskTitled", "terminate", "isVisible",
+  ]) {
+    assert(helper.includes(token), `missing native helper support: ${token}`);
+  }
+  const client = read("lib/client.js");
+  for (const token of [
+    "menuGroup", "menuIndependentOpen", "menuIndependentClose", "menuNativeOpen", "menuNativeClose",
+    "requestSystemWindow", "openNativeWindow(", "closeNativeWindow", "nativeWindows(",
+    "nativeWindowStore", "appWindowSnapshot", "runtimeStore",
+    "/dsv/system-window", "x-dsv-system-window", "dsv-system-window",
+    "bootSystemWindow", "zeroSystemWindowSidebarTrack", "data-dsv-system-window",
+  ]) {
+    assert(client.includes(token), `missing native system window client support: ${token}`);
+  }
+  assert(pkg.files.includes("native/system-window.jxa"), "the native helper must ship in the npm package");
+});
+
+test("session menu groups the three window surfaces and mirrors their state", () => {
+  const client = read("lib/client.js");
+  for (const token of [
+    'id: "split-plugin"',
+    "children: [",
+    'id: "split"',
+    "splitMember",
+    "menuAddToSplit",
+    "exitSplit",
+    "removeSessionFromSplit(id)",
+    "dockFloatToSplit(id)",
+    "menuIndependentOpen",
+    "menuIndependentClose",
+    "menuNativeOpen",
+    "menuNativeClose",
+    "menuFloatOpen",
+    "menuFloatClose",
+    "closeAppWindowFor(id)",
+    "openAppWindow(id)",
+    'mode === "close"',
+    "systemWindowNativeClosed",
+    'row("help"',
+    "openHelp()",
+  ]) {
+    assert(client.includes(token), `missing grouped window menu support: ${token}`);
+  }
+  // The menu must observe the live surface stores so closing a window (in-app
+  // or native, from inside or from the OS close button) flips Enter → Exit.
+  const observe = client.slice(client.indexOf("observe: () => ["), client.indexOf("],", client.indexOf("observe: () => [")) + 2);
+  for (const store of ["floatStore", "runtimeStore", "nativeWindowStore"]) {
+    assert(observe.includes(store), `the session menu must observe ${store}`);
+  }
+});
+
+test("help card: same-origin screenshots served by the Host", () => {
+  const host = read("lib/index.js");
+  for (const token of [
+    "/dsv/help",
+    "HELP_ASSETS",
+    "help-session-menu.png",
+    "help-footer-menu.png",
+    "help-settings.png",
+    "content-type\": \"image/png",
+  ]) {
+    assert(host.includes(token), `missing help asset Host support: ${token}`);
+  }
+  const client = read("lib/client.js");
+  for (const token of [
+    "HELP_SHOTS",
+    "/dsv/help/session-menu.png",
+    "/dsv/help/footer-menu.png",
+    "/dsv/help/settings.png",
+    "dsv-help-shots",
+    "dsv-help-lightbox",
+    "HelpShotLightbox",
+    "helpShotsTitle",
+    "helpShotZoom",
+  ]) {
+    assert(client.includes(token), `missing help screenshot client support: ${token}`);
+  }
+  for (const file of ["help-session-menu.png", "help-footer-menu.png", "help-settings.png"]) {
+    assert(exists(`docs/screenshots/${file}`), `missing help screenshot ${file}`);
   }
 });
 

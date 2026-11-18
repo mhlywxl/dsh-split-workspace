@@ -364,6 +364,64 @@
       }
     }
 
+    /** Rows for one conversation: one "分屏插件" first-level group whose
+        second level holds the split-membership toggle and the three window
+        surfaces. Every entry is a single Enter/Exit toggle that mirrors its
+        live state: split tree / pending pick, float store, app-window runtime
+        store, and the Host-tracked native window list. */
+    function sessionMenuActions(id) {
+      const inSplit = treeStore.leafIds().indexOf(id) !== -1;
+      const pending = pendingSplitStore.has(id);
+      const splitMember = inSplit || pending;
+      const floating = floatStore.has(id);
+      const appWindow = appWindowSnapshot();
+      const independent = appWindow !== null && appWindow.id === id;
+      const nativeWindow = nativeWindowStore.has(id);
+      return [
+        {
+          id: "split-plugin",
+          label: t("menuGroup"),
+          separatorBefore: true,
+          children: [
+            {
+              // 加入分屏 / 退出分屏 is now one toggle: a member (split pane or
+              // pending pick) exits, everything else joins.
+              id: "split",
+              label: t(splitMember ? "exitSplit" : "menuAddToSplit"),
+              run: () => {
+                if (splitMember) removeSessionFromSplit(id);
+                else if (floatStore.has(id)) dockFloatToSplit(id);
+                else addSessionToSplit(id);
+              },
+            },
+            {
+              id: "float",
+              label: t(floating ? "menuFloatClose" : "menuFloatOpen"),
+              run: () => {
+                if (floatStore.has(id)) closeFloatWindow(id);
+                else floatSession(id);
+              },
+            },
+            {
+              id: "independent",
+              label: t(independent ? "menuIndependentClose" : "menuIndependentOpen"),
+              failureLabel: t("systemWindowFailed"),
+              run: () => {
+                if (independent) closeAppWindowFor(id);
+                else openAppWindow(id);
+              },
+            },
+            {
+              id: "native",
+              label: t(nativeWindow ? "menuNativeClose" : "menuNativeOpen"),
+              failureLabel: t("systemWindowFailed"),
+              run: () => requestSystemWindow(id, nativeWindow ? "close" : "open"),
+            },
+          ],
+        },
+      ];
+    }
+
     /** Contribute 加入分屏 / 退出分屏 to the stock session context menu. The
         service is looked up lazily: a host without ui-context-menu simply does
         not get the rows (nothing else changes). */
@@ -383,43 +441,13 @@
               id: "split-workspace.session",
               target: "session",
               order: 350,
-              observe: () => [treeStore, pendingSplitStore, floatStore],
+              observe: () => [treeStore, pendingSplitStore, floatStore, runtimeStore, nativeWindowStore],
               resolve: (target) => {
                 const id = target !== null && target !== undefined ? target.sessionId : undefined;
                 if (!isValidSessionId(id)) return [];
-                const inSplit = treeStore.leafIds().indexOf(id) !== -1;
-                const pending = pendingSplitStore.has(id);
-                const floating = floatStore.has(id);
-                return [
-                  {
-                    id: "add",
-                    label: t("menuAddToSplit"),
-                    disabled: inSplit || pending,
-                    run: () => { if (floatStore.has(id)) dockFloatToSplit(id); else addSessionToSplit(id); },
-                  },
-                  {
-                    id: "remove",
-                    label: t("exitSplit"),
-                    disabled: !inSplit && !pending,
-                    run: () => { removeSessionFromSplit(id); },
-                  },
-                  {
-                    id: "float",
-                    label: t(floating ? "menuFloatClose" : "menuFloatOpen"),
-                    separatorBefore: true,
-                    run: () => {
-                      if (floatStore.has(id)) closeFloatWindow(id);
-                      else floatSession(id);
-                    },
-                  },
-                  {
-                    id: "system",
-                    label: t("menuSystemWindow"),
-                    separatorBefore: true,
-                    failureLabel: t("systemWindowFailed"),
-                    run: () => openSystemWindow(id),
-                  },
-                ];
+                // Refresh the Host-tracked native-window list before building
+                // the rows, so a window closed outside DSH already shows Enter.
+                return nativeWindowStore.refresh().then(() => sessionMenuActions(id)).catch(() => []);
               },
             });
           } catch (error) {
@@ -697,6 +725,7 @@
         desktopShell()
           ? row("restart", "⏻", t("restartApp"), () => { closeLauncher(); openRestartDialog(); })
           : null,
+        row("help", "?", t("helpOpen"), () => { closeLauncher(); openHelp(); }),
         row("reset", "↺", t("menuResetSplit"), () => { closeLauncher(); resetSplitEnvironment(); }, { danger: true }),
       );
     }

@@ -164,6 +164,9 @@
       notifyRuntime();
       return runtimeState;
     }
+    /** The same runtime state as a store object, for context-menu observes. */
+    const runtimeStore = { getSnapshot: runtimeSnapshot, subscribe: runtimeSubscribe };
+
     /** The plugin's own state store as a hook (safe before apply() runs). */
     function useRuntime() {
       return React.useSyncExternalStore(runtimeSubscribe, runtimeSnapshot, runtimeSnapshot);

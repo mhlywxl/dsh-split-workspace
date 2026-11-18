@@ -120,6 +120,11 @@
 
       ctx.effect(() => insertStyle(DSV_CSS), "dsh-split-workspace: stylesheet");
 
+      // A native system window boots this same client on the plain web origin.
+      // Remove the left sidebar, keep the stock right sidebar, and activate the
+      // conversation named by the URL hash. No-op in every other window.
+      ctx.effect(bootSystemWindow, "dsh-split-workspace: system window");
+
       // Performance mode is a CSS class on <html>; mirror the persisted flag
       // on every apply so a reload keeps it.
       ctx.effect(() => {

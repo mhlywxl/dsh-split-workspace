@@ -4,6 +4,26 @@
 
 This file records public releases of `dsh-split-workspace`; each version ends with a one-line English summary.
 
+## [0.11.0] - 2026-11-18
+
+### Added
+
+- **系统窗口（macOS 原生独立窗口）**：会话右键菜单新增 **分屏插件** 一级菜单，把 **加入分屏 / 退出分屏**、**进入浮窗 / 退出浮窗**、**进入独立窗口 / 退出独立窗口**、**进入系统窗口 / 退出系统窗口** 都收进它的二级菜单。其中「加入分屏 / 退出分屏」合并为同一个按状态显示的开关（在分屏/待分屏中显示「退出分屏」，否则显示「加入分屏」）。系统窗口打开一个真正的操作系统窗口（AppKit `NSWindow` + `WKWebView`，由 Host 通过 `osascript` 启动 `native/system-window.jxa`），可以拖到 DSH 主窗口之外、独立缩放和关闭；**不打开浏览器**，窗口内**不显示左侧栏**，右侧栏等其他区域照常保留。
+- **窗口菜单状态跟随窗口开关**：浮窗、独立窗口、系统窗口都在打开后把菜单项变成 **退出浮窗 / 退出独立窗口 / 退出系统窗口**；关闭窗口（包括点窗口自身的关闭按钮，或关闭系统窗口 Helper）后菜单自动回到“进入”状态。独立窗口跟随时运行时 store，系统窗口状态由 Host 维护并通过 `/dsv/system-window` 查询（菜单打开期间轮询），退出/关闭立即更新。
+- 新增 Host 侧 `nativeWindowSessions()` 与关闭动作：`POST /dsv/system-window` 支持 `{ sessionId, action: "open" | "close" }`，`GET` 返回当前系统窗口的会话列表；同一会话只保留一个系统窗口。
+- 窗口加载 Host 本机认证的 Web 客户端：认证 URL 由 Host 在进程内生成并只交给本机 Helper，**不会返回给渲染层**；URL 哈希标记让同一份客户端代码在窗口内进入「系统窗口模式」——隐藏左侧栏与其网格轨道、隐藏插件自己的入口，并激活目标会话。
+- **左下角分屏菜单新增「分屏帮助」入口**：底部分屏按钮菜单里可以直接打开带截图的帮助卡片。
+- **分屏帮助新增界面指引截图**：帮助卡片（「分屏帮助」/窗格 `?` / 设置页「分屏帮助」）里新增三张截图缩略图——会话右键「分屏插件」菜单、左下角分屏按钮菜单、设置 → 分屏工作区；点击缩略图打开大图（Esc 或点击遮罩关闭）。Host 新增同源静态路由 `/dsv/help/...`，从 `docs/screenshots/` 读取，桌面端与 Web 客户端均可显示。
+- 新增 API `window.__dshSplitWorkspace.openNativeWindow(sessionId)`、`closeNativeWindow(sessionId)` 与 `nativeWindows()`。
+- Windows / Linux 点击时提示改用「在独立窗口打开」，不会退回浏览器；关闭窗口会结束后台 Helper 进程，退出 DSH 时也会关闭这些窗口。
+
+### Changed
+
+- Host 新增 `/dsv/system-window` 路由（POST + 确认头 + 同源校验 + 会话 id 白名单），平台不支持时返回 `unsupported-platform`；新增 `native/system-window.jxa` 并加入 npm 发布文件清单。
+- README 增加系统窗口章节、限制说明与平台注意事项；测试补充系统窗口、Helper 与客户端入口断言。
+
+**English summary:** Session context menu gains **Open in system window**: on macOS the Host opens a real OS window (AppKit NSWindow + WKWebView, no browser) showing one conversation with no left sidebar and the stock right sidebar intact. Adds the `/dsv/system-window` Host route, `openNativeWindow()`, and a packaged `native/system-window.jxa` helper.
+
 ## [0.10.0] - 2026-11-18
 
 ### Changed

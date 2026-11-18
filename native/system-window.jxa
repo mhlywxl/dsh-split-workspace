@@ -1,0 +1,91 @@
+// dsh-split-workspace — native macOS system window (run by /usr/bin/osascript).
+//
+// DSH Desktop exposes no plugin-facing BrowserWindow API, so a "real" OS window
+// cannot be created from the renderer or from the Node Host process. This
+// helper is the closest native equivalent: an AppKit NSWindow with a WKWebView
+// that loads the Host's authenticated web client. The window owns its own
+// process (this osascript run), so it is completely independent of the DSH main
+// window: it can be moved anywhere, resized, and closed on its own.
+//
+// Usage: osascript -l JavaScript system-window.jxa "<authenticated client URL>"
+//
+// The URL carries the Host launch token once; the page redirects itself to the
+// clean URL and the WKWebView keeps that cookie for later windows. The client
+// bundle then switches to system-window mode from the URL hash marker.
+
+ObjC.import('Cocoa');
+ObjC.import('WebKit');
+
+function stderr(message) {
+  try {
+    const data = $.NSString.stringWithString(String(message) + '\n')
+      .dataUsingEncoding($.NSUTF8StringEncoding);
+    $.NSFileHandle.fileHandleWithStandardError.writeData(data);
+  } catch {}
+}
+
+function run(argv) {
+  const target = argv !== undefined && argv.length > 0 ? String(argv[0]) : '';
+  if (target === '') {
+    stderr('dsh-split-workspace: system window URL is missing');
+    return;
+  }
+
+  let app;
+  let win;
+  let web;
+  try {
+    app = $.NSApplication.sharedApplication;
+    // Accessory policy: the window is a normal OS window but the helper does
+    // not add a Dock icon or a menu bar of its own.
+    app.setActivationPolicy(1);
+    app.finishLaunching;
+
+    const visible = $.NSScreen.mainScreen.visibleFrame;
+    const width = Math.min(1320, Math.max(900, Math.round(visible.size.width * 0.78)));
+    const height = Math.min(920, Math.max(640, Math.round(visible.size.height * 0.86)));
+    const x = visible.origin.x + Math.round((visible.size.width - width) / 2);
+    const y = visible.origin.y + Math.round((visible.size.height - height) / 2);
+    const rect = $.NSMakeRect(x, y, width, height);
+    // Titled + closable + resizable. Miniaturize is deliberately omitted: an
+    // accessory-policy process has no Dock tile, so a minimized window could
+    // not be restored.
+    const style = $.NSWindowStyleMaskTitled | $.NSWindowStyleMaskClosable | $.NSWindowStyleMaskResizable;
+    win = $.NSWindow.alloc.initWithContentRectStyleMaskBackingDefer(rect, style, 2, false);
+    win.setTitle('DeepSeek Harness');
+    win.setMinSize($.NSMakeSize(720, 520));
+    win.setReleasedWhenClosed(false);
+
+    const config = $.WKWebViewConfiguration.alloc.init;
+    web = $.WKWebView.alloc.initWithFrameConfiguration(rect, config);
+    web.setAutoresizingMask($.NSViewWidthSizable | $.NSViewHeightSizable);
+    win.setContentView(web);
+    win.makeKeyAndOrderFront(null);
+    app.activateIgnoringOtherApps(true);
+
+    web.loadRequest($.NSURLRequest.requestWithURL($.NSURL.URLWithString(target)));
+  } catch (error) {
+    stderr('dsh-split-workspace: system window failed: ' + String(error));
+    try { if (app !== undefined) app.terminate(null); } catch {}
+    return;
+  }
+
+  // Keep the native title in sync with the client's document title, and quit
+  // this helper once the user closes the window. isVisible turns false on a
+  // close; a still-opening window is ignored by the title guard below.
+  $.NSTimer.scheduledTimerWithTimeIntervalRepeatsBlock(0.7, true, function (timer) {
+    try {
+      const title = ObjC.unwrap(web.title);
+      if (typeof title === 'string' && title !== '' && title !== ObjC.unwrap(win.title)) {
+        win.setTitle(title);
+      }
+      if (win.isVisible === false) {
+        app.terminate(null);
+      }
+    } catch {
+      // A missing title or URL is never fatal; the window stays usable.
+    }
+  });
+
+  app.run;
+}

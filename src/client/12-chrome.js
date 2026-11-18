@@ -45,11 +45,45 @@
       );
     }
 
+    /** Screenshots shown in the help card. The Host serves them from
+        docs/screenshots under /dsv/help/, so the same relative URL works in
+        the Desktop shell and the Web client. */
+    const HELP_SHOTS = [
+      { id: "session-menu", src: "/dsv/help/session-menu.png", label: "helpShotMenu" },
+      { id: "footer-menu", src: "/dsv/help/footer-menu.png", label: "helpShotFooter" },
+      { id: "settings", src: "/dsv/help/settings.png", label: "helpShotSettings" },
+    ];
+
+    /** Full-size screenshot opened from a help thumbnail. */
+    function HelpShotLightbox({ shot, onClose }) {
+      React.useEffect(() => {
+        const onKeyDown = (event) => {
+          if (event.key !== "Escape") return;
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        };
+        document.addEventListener("keydown", onKeyDown, true);
+        return () => document.removeEventListener("keydown", onKeyDown, true);
+      }, [onClose]);
+      return h("div", {
+        className: "dsv-help-lightbox",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-label": t(shot.label),
+        "data-plugin": PLUGIN_ID,
+        onClick: onClose,
+      },
+        h("img", { src: shot.src, alt: t(shot.label), draggable: false, onClick: (event) => event.stopPropagation() }),
+      );
+    }
+
     /** The one help card: opened by the pane header "?" and by the blocked
         chip. Lives inside the plugin overlay when active (fixed variant for the
         inactive chip path). */
     function HelpCard({ fixed }) {
       const help = helpText();
+      const [shot, setShot] = React.useState(null);
       return h("div", {
         className: "dsv-help-card" + (fixed === true ? " dsv-help-card-fixed" : ""),
         role: "dialog",
@@ -73,6 +107,17 @@
         )),
         h("div", { className: "dsv-help-body", style: { marginTop: "6px" } }, t("helpGestures")),
         h("div", { className: "dsv-help-body", style: { marginTop: "6px" } }, t("helpIndependent")),
+        h("div", { className: "dsv-help-section-title" }, t("helpShotsTitle")),
+        h("div", { className: "dsv-help-shots" }, HELP_SHOTS.map((item) => h("figure", {
+          key: item.id,
+          className: "dsv-help-shot",
+          title: t("helpShotZoom"),
+          onClick: () => setShot(item),
+        },
+          h("img", { src: item.src, alt: t(item.label), loading: "lazy", draggable: false }),
+          h("figcaption", null, t(item.label)),
+        ))),
+        shot !== null ? h(HelpShotLightbox, { shot, onClose: () => setShot(null) }) : null,
         h("div", { className: "dsv-help-body", style: { marginTop: "6px" } }, t("helpDisable")),
         h("div", { className: "dsv-help-body", style: { marginTop: "2px" } }, t("helpDiagnostics")),
         h("div", { className: "dsv-help-body", style: { marginTop: "2px" } }, t("helpRestart")),

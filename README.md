@@ -2,7 +2,7 @@
 
 **中文（默认）** · [English](#english)
 
-把 DeepSeek Harness 的对话区拆成原生多窗格工作区——左右分屏、上下分屏、田字 2×2 或自动网格，窗口放得下多少会话就开多少。每个窗格都是真实会话，拥有自己的输入框、流式输出、停止、队列、待办、附件、`/` 命令、`ask_user_question`、审批与视图页，桌面端（`dsh-app://`）同样可用。还可以把任意会话变成可拖动、可缩放的**浮窗**，在分屏与浮窗两种模式之间来回切换；或把它放进**应用内独立窗口**（关闭 / 最小化 / 最大化 / 全屏），并支持从侧边栏菜单和**系统设置**两个入口操作。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+把 DeepSeek Harness 的对话区拆成原生多窗格工作区——左右分屏、上下分屏、田字 2×2 或自动网格，窗口放得下多少会话就开多少。每个窗格都是真实会话，拥有自己的输入框、流式输出、停止、队列、待办、附件、`/` 命令、`ask_user_question`、审批与视图页，桌面端（`dsh-app://`）同样可用。还可以把任意会话变成可拖动、可缩放的**浮窗**，在分屏与浮窗两种模式之间来回切换；或把它放进**应用内独立窗口**（关闭 / 最小化 / 最大化 / 全屏），macOS 桌面版还可以把它放进**真正的系统窗口**（系统 WebView，独立于 DSH 主窗口，不经过浏览器）；并支持从侧边栏菜单和**系统设置**两个入口操作。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 快速开始
 
@@ -79,8 +79,18 @@ dsh --profile web
 - 拖动侧边栏会话经过窗格边缘时，窗格会预览放下后的布局，并用虚线占位标出即将加入的会话；松开即应用该布局。
 - **重置分屏** 会清空本插件在 localStorage / sessionStorage 里的分屏相关键、已保存布局、崩溃保护、最小化标记和窗格临时缓存（性能模式偏好会保留）；当分屏因为缓存或异常状态怎么都起不来时，点它即可恢复到干净状态。
 - 右键任意会话（或点行尾的「⋯」）→ **进入浮窗**，即可把该会话变成一个可自由摆放的浮窗；浮窗标题栏可以拖动、边缘可以缩放，点 **⇲ 回到分屏** 放回分屏，点 **✕** 直接关闭浮窗。同一会话不会同时出现在分屏和浮窗里：进入浮窗时会自动从分屏/待分屏中移出。
-- 右键会话 → **在独立窗口打开**：在应用内单独显示该会话，提供关闭 / 最小化 / 最大化 / 全屏，不再打开浏览器。
+- 右键会话 → **分屏插件**：一级菜单集中了会话的分屏与窗口操作，二级菜单包括 **加入分屏 / 退出分屏**（同一个开关，按当前状态显示）、**进入浮窗 / 退出浮窗**、**进入独立窗口 / 退出独立窗口**、**进入系统窗口 / 退出系统窗口**。每个条目都按当前状态显示“进入”或“退出”；窗口关闭（包括点窗口自身的关闭按钮）后，菜单会自动回到“进入”状态。
 - **关闭窗格（标题栏 ✕）或退出分屏时，只要剩余会话少于两个就整体退出分屏**：窗格树和所有会话的分屏状态会一起清空，不会留下「菜单里显示分屏中、却没有被选中」的残留状态。只剩一个窗格的分屏不成立，所以不保留隐藏的单窗格树。
+
+## 使用帮助（界面指引）
+
+插件内的 **分屏帮助**（菜单里的「分屏帮助」、窗格标题栏的 `?`，或设置页的「分屏帮助」）现在已经带三张界面指引截图，点击缩略图可以查看大图：
+
+| 会话右键菜单（分屏插件） | 左下角分屏按钮菜单 | 设置 → 分屏工作区 |
+| --- | --- | --- |
+| [![右键会话 → 分屏插件二级菜单](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-session-menu.png)](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-session-menu.png) | [![左下角分屏按钮菜单](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-footer-menu.png)](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-footer-menu.png) | [![设置 → 分屏工作区](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-settings.png)](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-settings.png) |
+
+截图由插件 Host 从 `docs/screenshots/` 以同源路径 `/dsv/help/...` 提供，因此桌面端（`dsh-app://`）和 Web 客户端都能直接显示，无需外网。
 
 ## 浮窗模式（独立窗口）
 
@@ -104,10 +114,21 @@ dsh --profile web
 
 ## 独立窗口（应用内，不依赖浏览器）
 
-- 右键会话 → **在独立窗口打开**：在 DSH 应用内部打开一个只显示该会话的窗口，提供 **关闭 / 最小化 / 最大化-还原 / 全屏**；双击标题栏切换最大化，最小化后收成左下角的恢复胶囊。
+- **进入独立窗口**（0.11.0 起收在「分屏插件」二级菜单；早期版本为「在独立窗口打开」）：在 DSH 应用内部打开一个只显示该会话的窗口，提供 **关闭 / 最小化 / 最大化-还原 / 全屏**；双击标题栏切换最大化，最小化后收成左下角的恢复胶囊。该会话已经在这个窗口里时，菜单显示 **退出独立窗口**；关闭窗口后菜单回到「进入独立窗口」。
 - 打开时该会话会从分屏 / 浮窗 / 待分屏中移出，避免同一会话同时被两个输入框编辑；关闭独立窗口不会删除会话，它仍在侧栏里，可随时重新加入分屏。
-- **为什么不是系统原生窗口？** DSH Desktop 的 Electron 主进程只保留一个应用窗口，主窗口的 `setWindowOpenHandler` 拒绝用 `window.open` 创建第二个原生窗口（http/https 只交给系统浏览器）；插件的 Host 进程是 Node 子进程，没有 Electron `BrowserWindow` API。当前 DSH 版本没有插件可用的原生多窗口接口，所以 0.8.0 的“系统窗口”只能落到浏览器，而 0.10.0 改成**应用内独立窗口**：不再打开浏览器、没有地址栏，窗口控制由插件自己绘制。
-- 限制：它仍在 DSH 主窗口内部（不是操作系统级第二窗口），不能拖到 DSH 窗口之外；如果未来 DSH 开放原生多窗口，这一层可以替换为真正的系统窗口，会话切换逻辑不变。
+- **为什么不是 Electron 原生窗口？** DSH Desktop 的 Electron 主进程只保留一个应用窗口，主窗口的 `setWindowOpenHandler` 拒绝用 `window.open` 创建第二个原生窗口（http/https 只交给系统浏览器）；插件的 Host 进程是 Node 子进程，没有 Electron `BrowserWindow` API。所以 0.10.0 把这一层做成**应用内独立窗口**（不再打开浏览器、没有地址栏，窗口控制由插件自己绘制）；macOS 上另见下一节的「系统窗口」，用系统 WebView 实现真正的独立窗口。
+- 限制：它仍在 DSH 主窗口内部（不是操作系统级第二窗口），不能拖到 DSH 窗口之外。
+
+## 系统窗口（macOS 原生独立窗口，0.11.0）
+
+- 右键会话 → **分屏插件** → **进入系统窗口**：在 macOS 上打开一个**真正的操作系统窗口**。它不是 DSH 主窗口里的一层浮层，可以拖到主窗口之外、单独缩放和关闭，不会打开浏览器，也没有地址栏。该会话的系统窗口已经打开时，菜单显示 **退出系统窗口**；在窗口里点关闭（或从菜单退出）后，菜单会自动回到「进入系统窗口」。
+- 窗口内容仍然是这个会话的真实客户端：**左侧栏不显示**（会话占满窗口），**右侧栏、对话头部、输入框、视图页等都照常保留**，右上角的「打开右侧边栏」依然可用。
+- **实现方式**：DSH 没有向插件开放 Electron `BrowserWindow`，所以插件 Host 用系统自带的 AppKit `NSWindow` + `WKWebView`（`osascript` 运行 `native/system-window.jxa`）打开窗口，并让这个 WebView 加载 Host 的**本机认证 Web 客户端**。认证 URL 由 Host 在进程内生成，只传给本机 Helper，**不会返回给渲染层**；哈希标记让同一份客户端代码在窗口内切换成「系统窗口模式」。
+- **平台**：目前仅 macOS。Windows / Linux 上点击会提示改用「在独立窗口打开」，不会退回浏览器。窗口标题跟随会话标题；关闭窗口即结束 Helper 进程，退出 DSH 时也会一并关闭这些窗口。
+- 窗口是辅助型进程，不占 Dock 图标，因此**没有最小化按钮**（避免最小化后无法从 Dock 恢复）；提供关闭、缩放和标题栏拖动，可用「调度中心」或窗口本身切换。
+- **注意**：系统窗口是独立的 Web 客户端，所以桌面端专属能力（如原生文件拖拽、系统目录选择器）在窗口内的行为以 Web 客户端为准；会话数据与主窗口共享同一个 Host，输入、流式输出和右侧栏功能正常。
+
+![系统窗口：不再显示左侧栏，右侧栏与对话区照常保留](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/system-window.png)
 
 ## 系统设置入口
 
@@ -151,9 +172,9 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 
 ## 功能
 
-- **侧边栏分屏菜单**：底部分屏按钮弹出「添加分屏 / 退出分屏 / 最小化分屏 / 重置分屏」，其中退出和最小化与顶部工具栏完全一致。
+- **侧边栏分屏菜单**：底部分屏按钮弹出「添加分屏 / 退出分屏 / 最小化分屏 / 性能模式 / 刷新界面 / 重启 DSH / 分屏帮助 / 重置分屏」，其中退出和最小化与顶部工具栏完全一致，「分屏帮助」直接打开带截图的帮助卡片。
 - **多选添加分屏**：弹框可搜索、可多选；已分屏时默认勾选当前窗格，可取消或追加，按最终勾选结果分屏。
-- **会话右键集成**：原生右键菜单新增「加入分屏 / 退出分屏」，未分屏时先进入待分屏，满两个才分屏；退出到只剩一个自动退出分屏。
+- **会话右键集成**：原生右键菜单新增「分屏插件」二级菜单，其中「加入分屏 / 退出分屏」按状态显示为同一个开关；未分屏时先进入待分屏，满两个才分屏，退出到只剩一个自动退出分屏。
 - **浮窗模式**：右键会话 → 「进入浮窗」，把会话变成可拖动、可缩放的独立窗口；标题栏 ⇲ 放回分屏、✕ 关闭，浮窗位置/大小/层叠顺序持久化。
 - **分屏 ⇄ 浮窗双向切换**：同一会话互斥存在于一种形态；进入浮窗自动移出分屏，回到分屏自动关闭浮窗。
 - **独立窗口（应用内）**：右键会话 → 「在独立窗口打开」，在应用内单独显示该会话，提供关闭 / 最小化 / 最大化 / 全屏；不打开浏览器，打开时自动从分屏和浮窗移出。
@@ -201,6 +222,9 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 - `window.__dshSplitWorkspace.closeFloat(sessionId)`：关闭浮窗（不放回分屏）。
 - `window.__dshSplitWorkspace.floats()`：当前浮窗的会话 id 列表（按创建顺序）。
 - `window.__dshSplitWorkspace.openSystemWindow(sessionId)`：在应用内独立窗口打开该会话（`openIndependentWindow` 是同一功能的别名）。
+- `window.__dshSplitWorkspace.openNativeWindow(sessionId)`：在 macOS 系统窗口（原生独立窗口）打开该会话；其他平台会提示不支持。
+- `window.__dshSplitWorkspace.closeNativeWindow(sessionId)`：关闭该会话的系统窗口。
+- `window.__dshSplitWorkspace.nativeWindows()`：当前已打开系统窗口的会话 id 列表。
 - `window.__dshSplitWorkspace.appWindow()`：当前独立窗口状态（`{ id, minimized, maximized }` 或 `null`）。
 - `window.__dshSplitWorkspace.setPerformanceMode(true/false)`：开关性能模式（持久化）。
 - `window.__dshSplitWorkspace.performanceMode()`：当前是否处于性能模式。
@@ -236,8 +260,9 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 | `13-drag-bridge` | 未激活时的拖入分屏桥 |
 | `14-launcher` | 底部菜单、多选添加分屏弹框、会话菜单集成 |
 | `15-float-window` | 浮窗组件与图层 |
-| `16-standalone` | 应用内独立窗口组件、窗口层与恢复胶囊 |
+| `16-standalone` | 应用内独立窗口组件、窗口层与恢复胶囊，以及系统窗口的模式切换与请求 |
 | `17-api-apply` | `window.__dshSplitWorkspace` API、`apply()` 与导出 |
+| `native/system-window.jxa` | macOS 系统窗口 Helper（AppKit `NSWindow` + `WKWebView`，由 Host 通过 `osascript` 启动） |
 
 - `npm run build`：重新生成 `lib/client.js`；`npm test` 会先跑 `build:check`，源码/产物不一致会失败。
 - 为什么不用打包器：DSH 客户端只加载一个 `<plugin>/client.js`，片段共享同一个 module-loader 闭包，按顺序拼接即可；这样发布包保持零依赖、无构建依赖。
@@ -265,7 +290,7 @@ will land:
 - 没有窗格数量上限；持久化树会校验（会话唯一、深度），损坏的树会被丢弃，而不是恢复一个坏掉的工作区。
 - 「浮窗」是应用内窗口，不是 Electron 原生第二窗口：DSH Desktop 主窗口禁用了 `window.open`，Web 客户端也没有会话深链；浮窗复用真实会话组件、可拖动缩放，但仍在 DSH 主窗口内渲染（详见上面的「为什么浮窗不是系统级独立窗口？」）。
 - 浮窗和分屏窗格互斥；同一会话不会同时以两种形态渲染，避免共享编辑器冲突。
-- 「独立窗口」是应用内窗口，不是系统原生第二窗口：DSH Desktop 拒绝插件创建原生窗口，Host 进程也没有 Electron `BrowserWindow` API；它不打开浏览器、没有地址栏，但不能移出 DSH 主窗口。独立窗口内的会话同样互斥于分屏和浮窗。
+- 「独立窗口」是应用内窗口：它不打开浏览器、没有地址栏，但不能移出 DSH 主窗口。macOS 桌面版另提供「系统窗口打开」（系统 WebView，独立窗口）；DSH 本身仍未向插件开放 Electron `BrowserWindow`。独立窗口内的会话同样互斥于分屏和浮窗。
 - 持久化递归深度上限为 32 层，是为了手改数据时的栈安全，不是窗格上限。
 - 隐藏的原生会话仍在遮罩下流式运行；窗格重新挂载原生输入框，所以每个窗格自己的输入框拥有该会话的编辑器。
 - 窗格重命名拒绝空会话（原生重命名对话框同样如此）。
@@ -282,9 +307,14 @@ MIT。见 `THIRD-PARTY-NOTICES.md`。
 **Split screen for DeepSeek Harness (DSH) Desktop — open as many conversations
 as you need, side by side, stacked, or in a 2×2 / automatic grid.** Any
 conversation can also become a movable, resizable **floating window**, switch
-between the two modes at any time, or move into an **in-app independent window**
-(close / minimize / maximize / fullscreen). Both the sidebar menu and the system
-**Settings** page expose the controls. Version history: [CHANGELOG.md](CHANGELOG.md).
+between the two modes at any time, move into an **in-app independent window**
+(close / minimize / maximize / fullscreen), or — on macOS Desktop — open a real
+**native OS window** (system WebView, no browser, no left sidebar) for one
+conversation. The session menu's **Split plugin** submenu holds the
+`Join split / Leave split` toggle together with all three window surfaces,
+each showing **Exit …** while that surface is open.
+Both the sidebar menu and the system **Settings** page expose the controls.
+Version history: [CHANGELOG.md](CHANGELOG.md).
 
 `dsh-split-workspace` turns the DeepSeek Harness conversation area into a native
 multi-pane workspace, including in the **Desktop app** (`dsh-app://` shell). Each
@@ -298,7 +328,8 @@ attachments, `/` commands, `ask_user_question`, approvals and view tabs.
 
 **Search terms / 搜索关键词**：split screen, split view, split pane, multi-pane,
 multi-session, multi-window, tiled workspace, unlimited panes, DSH Desktop,
-分屏, 分屏插件, 多窗格, 多窗口, 多会话, 左右分屏, 上下分屏, 并排, 田字布局.
+分屏, 分屏插件, 多窗格, 多窗口, 多会话, 左右分屏, 上下分屏, 并排, 田字布局,
+系统窗口, 原生窗口, macOS system window, native window.
 
 The pane engine is derived from
 [dsh-split-screen](https://github.com/YEYEYEYESHIFU/dsh-split-screen) 1.7.0
@@ -379,6 +410,13 @@ dsh --profile web
 - Closing a pane (header **✕**) or leaving the split via the context menu exits the split as soon as fewer than two conversations remain: the whole pane tree and every conversation's split membership are cleared, so nothing is left tagged “in split” while unselected.
 - Right-click any conversation (or its row `⋯` button) → **Enter floating window** to detach it into a movable window. Drag its title bar to move it, drag any edge to resize, use **⇲ Dock to split** to put it back into a split, or **✕** to close the float. A conversation is never hosted in both modes: entering a float removes it from the split / pending split first.
 - Right-click a conversation → **Open in independent window** to open it alone in an in-app window with close / minimize / maximize-restore / fullscreen controls — no browser is opened.
+
+### Usage help (screenshots)
+
+The in-app **Split help** card now carries three annotated screenshots — the
+session right-click menu, the bottom-left split button menu, and Settings →
+Split workspace — with click-to-enlarge thumbnails. The Host serves them
+same-origin from `docs/screenshots/` under `/dsv/help/...`.
 
 ### Floating windows
 
