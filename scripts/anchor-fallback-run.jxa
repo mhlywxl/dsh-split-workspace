@@ -1,0 +1,54 @@
+// dsh-split-workspace - WKWebView harness for the anchor-positioning fallback.
+//
+// Loads a fixture page in an offscreen WKWebView (the same engine as the macOS
+// system window), waits for the page to publish its measurement through
+// document.title, writes that JSON to argv[1], and exits. Used by
+// scripts/check-wkwebview-anchor.mjs. NSApplication.run never returns under
+// osascript, so the result travels through a file and the process terminates.
+
+ObjC.import('Cocoa');
+ObjC.import('WebKit');
+
+function run(argv) {
+  const page = argv !== undefined && argv.length > 0 ? String(argv[0]) : '';
+  const output = argv !== undefined && argv.length > 1 ? String(argv[1]) : '';
+  const app = $.NSApplication.sharedApplication;
+  app.setActivationPolicy(1);
+  app.finishLaunching;
+
+  const config = $.WKWebViewConfiguration.alloc.init;
+  const web = $.WKWebView.alloc.initWithFrameConfiguration($.NSMakeRect(0, 0, 1000, 800), config);
+  const window = $.NSWindow.alloc.initWithContentRectStyleMaskBackingDefer($.NSMakeRect(0, 0, 1000, 800), 0, 2, false);
+  window.setContentView(web);
+  web.loadFileURLAllowingReadAccessToURL(
+    $.NSURL.fileURLWithPath(page),
+    $.NSURL.fileURLWithPath(page)
+  );
+
+  let finished = false;
+  const finish = (payload) => {
+    if (finished) return;
+    finished = true;
+    try {
+      $.NSString.stringWithString(payload).writeToFileAtomically(output, true);
+    } catch {}
+    app.terminate(null);
+  };
+  const deadline = Date.now() + 15000;
+  $.NSTimer.scheduledTimerWithTimeIntervalRepeatsBlock(0.1, true, function () {
+    try {
+      if (Date.now() > deadline) {
+        finish(JSON.stringify({ timeout: true }));
+        return;
+      }
+      const title = ObjC.unwrap(web.title);
+      if (typeof title === 'string' && title.charAt(0) === '{') {
+        finish(title);
+      }
+    } catch (error) {
+      finish(JSON.stringify({ harnessError: String(error) }));
+    }
+  });
+
+  app.run;
+}

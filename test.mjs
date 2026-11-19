@@ -8,10 +8,10 @@
  * of development leftovers or accidentally committed credentials.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { restartCommand } from "./lib/index.js";
+import { nativeWindowSupported, restartCommand, systemWindowCommand } from "./lib/index.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
@@ -39,6 +39,10 @@ function read(relative) {
 
 function exists(relative) {
   return existsSync(join(ROOT, relative));
+}
+
+function statSafe(relative) {
+  return statSync(join(ROOT, relative));
 }
 
 function repoSlug(value) {
@@ -532,6 +536,7 @@ test("README documents the independent window, settings entry and changelog", ()
   for (const text of [
     "独立窗口", "在独立窗口打开", "不依赖浏览器", "openIndependentWindow", "openSystemWindow(sessionId)",
     "系统设置入口", "设置 → 分屏工作区", "CHANGELOG.md", "进入系统窗口", "分屏插件", "macOS",
+    "WebView2", "WebView2 运行时", "native/system-window.ps1",
     "Independent window", "in-app", "Settings entry", "Settings → Split workspace",
   ]) {
     assert(readme.includes(text), `README is missing ${text}`);
@@ -556,6 +561,11 @@ test("native system window: Host route, macOS helper and client entry", () => {
     "closeNativeSystemWindow",
     "readWindowRequest",
     "nativeWindows = new Map",
+    "systemWindowCommand",
+    "nativeWindowSupported",
+    "system-window.ps1",
+    "native/webview2",
+    "taskkill.exe",
   ]) {
     assert(host.includes(token), `missing native system window Host support: ${token}`);
   }
@@ -576,10 +586,130 @@ test("native system window: Host route, macOS helper and client entry", () => {
     "nativeWindowStore", "appWindowSnapshot", "runtimeStore",
     "/dsv/system-window", "x-dsv-system-window", "dsv-system-window",
     "bootSystemWindow", "zeroSystemWindowSidebarTrack", "data-dsv-system-window",
+    "installAnchorFallback", "cssAnchorPositioningSupported", "anchorPanelInsets",
+    "data-anchor-side", "data-anchor-align", "dsvAnchorFallback",
   ]) {
     assert(client.includes(token), `missing native system window client support: ${token}`);
   }
   assert(pkg.files.includes("native/system-window.jxa"), "the native helper must ship in the npm package");
+  assert(pkg.files.includes("native/system-window.ps1"), "the Windows helper must ship in the npm package");
+  assert(pkg.files.includes("native/webview2/**"), "the vendored WebView2 assets must ship in the npm package");
+});
+
+test("Windows system window: PowerShell + WebView2 helper assets", () => {
+  const helper = read("native/system-window.ps1");
+  for (const token of [
+    "System.Windows.Forms",
+    "Microsoft.Web.WebView2.WinForms.WebView2",
+    "EnsureCoreWebView2Async",
+    "CoreWebView2InitializationCompleted",
+    "GetAvailableBrowserVersionString",
+    "WEBVIEW2_USER_DATA_FOLDER",
+    "SetDllDirectory",
+    "WebView2Loader.dll",
+    "UrlB64",
+    "Application]::Run",
+  ]) {
+    assert(helper.includes(token), `missing Windows helper support: ${token}`);
+  }
+  // The helper must keep its diagnostics and its failure codes distinct: the
+  // Host maps exit code 3 to the "install the WebView2 Runtime" hint.
+  assert(helper.includes("[Environment]::Exit($Code)"), "the helper must exit with explicit codes");
+  assert(helper.includes("is not installed"), "the helper must report a missing WebView2 Runtime");
+  for (const asset of [
+    "native/webview2/Microsoft.Web.WebView2.Core.dll",
+    "native/webview2/Microsoft.Web.WebView2.WinForms.dll",
+    "native/webview2/x64/WebView2Loader.dll",
+    "native/webview2/arm64/WebView2Loader.dll",
+    "native/webview2/LICENSE.txt",
+    "native/webview2/NOTICE.txt",
+  ]) {
+    assert(exists(asset), `missing vendored WebView2 asset ${asset}`);
+    assert(statSafe(asset).size > 1024, `vendored WebView2 asset is empty: ${asset}`);
+  }
+});
+
+test("system window helper command targets macOS and Windows", () => {
+  assert(nativeWindowSupported("darwin") === true, "macOS must support the system window");
+  assert(nativeWindowSupported("win32") === true, "Windows must support the system window");
+  assert(nativeWindowSupported("linux") === false, "Linux must not claim system window support");
+  assert(systemWindowCommand("linux", "http://127.0.0.1:1/", "s1") === null, "Linux must have no helper command");
+  const mac = systemWindowCommand("darwin", "http://127.0.0.1:1/?t=a", "s1");
+  assert(mac.command === "/usr/bin/osascript", "macOS must run the JXA helper through osascript");
+  assert(mac.args.includes("system-window.jxa") || mac.args.some((arg) => arg.endsWith("system-window.jxa")), "macOS must pass the JXA helper");
+  assert(mac.args[mac.args.length - 1].endsWith("#dsv-system-window=s1"), "macOS must append the system window marker");
+  const win = systemWindowCommand("win32", "http://127.0.0.1:1/?t=a&b=c", "s1");
+  assert(win.command === "powershell.exe", "Windows must run the PowerShell helper");
+  const args = win.args.join(" ");
+  for (const token of ["-File", "system-window.ps1", "-UrlB64", "-WebView2Dir", "webview2"]) {
+    assert(args.includes(token), `Windows helper command is missing ${token}`);
+  }
+  assert(args.includes("-ExecutionPolicy Bypass"), "Windows must not be blocked by the execution policy");
+  const encoded = win.args[win.args.indexOf("-UrlB64") + 1];
+  const decoded = Buffer.from(encoded, "base64").toString("utf8");
+  assert(decoded === "http://127.0.0.1:1/?t=a&b=c#dsv-system-window=s1", "the Windows helper must receive the marker URL verbatim");
+  assert(systemWindowCommand("win32", "http://x/", "bad id!") === null, "invalid session ids must be rejected before spawning");
+});
+
+
+test("system window: anchor fallback places stock menus above their trigger", () => {
+  const source = read("src/client/16-standalone.js");
+  const start = source.indexOf("// dsv-anchor-math:start");
+  const end = source.indexOf("// dsv-anchor-math:end");
+  assert(start !== -1 && end > start, "the anchor fallback math is not marked for testing");
+  const mathSource = source.slice(source.indexOf("\n", start), end);
+  const insets = new Function(mathSource + "\nreturn anchorPanelInsets;")();
+  const viewport = { width: 1000, height: 800 };
+
+  // Composer menus open upward with align=end: the panel's bottom sits just
+  // above the trigger and its right edge lines up with the trigger's.
+  const up = insets({ top: 600, right: 900, bottom: 628, left: 700 }, viewport, "top", "end", 8);
+  assert(up.bottom === 208, "side=top must anchor the panel's bottom above the trigger");
+  assert(up.right === 100, "align=end must align the panel's right edge with the trigger");
+  assert(up.top === null && up.left === null, "side=top/align=end must not set top or left");
+  assert(up.maxHeight === 580, "side=top must cap the panel height to the space above");
+
+  // Point-free downward menus align their left edge with the trigger.
+  const down = insets({ top: 100, right: 140, bottom: 128, left: 40 }, viewport, "bottom", "start", 4);
+  assert(down.top === 132, "side=bottom must anchor the panel's top below the trigger");
+  assert(down.left === 40, "align=start must align the panel's left edge with the trigger");
+  assert(down.maxHeight === 656, "side=bottom must cap the panel height to the space below");
+
+  // Side submenus follow the trigger instead of the viewport corner.
+  const right = insets({ top: 200, right: 300, bottom: 220, left: 200 }, viewport, "right", "start", 4);
+  assert(right.left === 304, "side=right must place the submenu beside the trigger");
+  assert(right.top === 200, "side=right must align the submenu with the trigger top");
+  const left = insets({ top: 200, right: 300, bottom: 220, left: 200 }, viewport, "left", "start", 4);
+  assert(left.right === 804, "side=left must place the submenu on the trigger's left");
+
+  // A panel never leaves the layout viewport, even when the trigger does not.
+  const clamped = insets({ top: 40, right: 1200, bottom: 68, left: 1100 }, viewport, "top", "end", 4);
+  assert(clamped.right === 12, "the panel must stay inside the viewport margin");
+  assert(clamped.maxWidth === 976, "the panel width must be capped to the viewport");
+
+  assert(insets({ top: 0, right: 0, bottom: 0, left: 0 }, viewport, "diagonal", "start", 4) === null,
+    "unknown anchor sides must not be positioned");
+});
+
+test("macOS system window ships a WKWebView anchor fallback check", () => {
+  assert(exists("scripts/check-wkwebview-anchor.mjs"), "the WKWebView anchor fallback check is missing");
+  assert(exists("scripts/anchor-fallback-run.jxa"), "the WKWebView harness is missing");
+  assert(pkg.scripts["check:anchor"] === "node scripts/check-wkwebview-anchor.mjs", "npm run check:anchor must run the check");
+  const check = read("scripts/check-wkwebview-anchor.mjs");
+  for (const token of [
+    "dsv-anchor-fallback:start",
+    "dsv-anchor-fallback:end",
+    "installAnchorFallback",
+    "data-anchor-side",
+    "--dsh-model-anchor",
+    "document.title",
+  ]) {
+    assert(check.includes(token), `the WKWebView check is missing ${token}`);
+  }
+  const harness = read("scripts/anchor-fallback-run.jxa");
+  for (const token of ["WKWebView", "loadFileURLAllowingReadAccessToURL", "writeToFileAtomically", "app.terminate"]) {
+    assert(harness.includes(token), `the WKWebView harness is missing ${token}`);
+  }
 });
 
 test("session menu groups the three window surfaces and mirrors their state", () => {

@@ -2,7 +2,7 @@
 
 **中文（默认）** · [English](#english)
 
-把 DeepSeek Harness 的对话区拆成原生多窗格工作区——左右分屏、上下分屏、田字 2×2 或自动网格，窗口放得下多少会话就开多少。每个窗格都是真实会话，拥有自己的输入框、流式输出、停止、队列、待办、附件、`/` 命令、`ask_user_question`、审批与视图页，桌面端（`dsh-app://`）同样可用。还可以把任意会话变成可拖动、可缩放的**浮窗**，在分屏与浮窗两种模式之间来回切换；或把它放进**应用内独立窗口**（关闭 / 最小化 / 最大化 / 全屏），macOS 桌面版还可以把它放进**真正的系统窗口**（系统 WebView，独立于 DSH 主窗口，不经过浏览器）；并支持从侧边栏菜单和**系统设置**两个入口操作。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+把 DeepSeek Harness 的对话区拆成原生多窗格工作区——左右分屏、上下分屏、田字 2×2 或自动网格，窗口放得下多少会话就开多少。每个窗格都是真实会话，拥有自己的输入框、流式输出、停止、队列、待办、附件、`/` 命令、`ask_user_question`、审批与视图页，桌面端（`dsh-app://`）同样可用。还可以把任意会话变成可拖动、可缩放的**浮窗**，在分屏与浮窗两种模式之间来回切换；或把它放进**应用内独立窗口**（关闭 / 最小化 / 最大化 / 全屏），桌面版还可以把它放进**真正的系统窗口**（macOS 用系统 WebView、Windows 用 WebView2，独立于 DSH 主窗口，不经过浏览器）；并支持从侧边栏菜单和**系统设置**两个入口操作。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 快速开始
 
@@ -14,7 +14,7 @@
 | 桌面端 DSH Desktop（`dsh-app://`） | 日常使用，支持完整桌面能力，推荐 | `desktop` profile，由桌面端管理 |
 
 - 支持 DSH 0.2.0 / 0.2.1，当前针对 0.2.1-rc.2 构建。
-- 包内 `lib/client.js` 已预构建，无原生依赖、无安装脚本；macOS / Windows / Linux 行为一致。
+- 包内 `lib/client.js` 已预构建，无 Node 原生模块、无安装脚本，客户端的 macOS / Windows / Linux 行为一致；Windows 的「系统窗口」随包附带 WebView2 SDK（约 1.1 MB，BSD-3-Clause），无需本地编译，但需要机器已安装 Microsoft Edge WebView2 运行时（Windows 11 自带，Windows 10 装过新版 Edge 即有）。
 - 插件本身运行时不联网。
 
 ### Web：在线安装
@@ -127,16 +127,18 @@ dsh --profile web
 
 - **进入独立窗口**（0.11.0 起收在「分屏插件」二级菜单；早期版本为「在独立窗口打开」）：在 DSH 应用内部打开一个只显示该会话的窗口，提供 **关闭 / 最小化 / 最大化-还原 / 全屏**；双击标题栏切换最大化，最小化后收成左下角的恢复胶囊。该会话已经在这个窗口里时，菜单显示 **退出独立窗口**；关闭窗口后菜单回到「进入独立窗口」。
 - 打开时该会话会从分屏 / 浮窗 / 待分屏中移出，避免同一会话同时被两个输入框编辑；关闭独立窗口不会删除会话，它仍在侧栏里，可随时重新加入分屏。
-- **为什么不是 Electron 原生窗口？** DSH Desktop 的 Electron 主进程只保留一个应用窗口，主窗口的 `setWindowOpenHandler` 拒绝用 `window.open` 创建第二个原生窗口（http/https 只交给系统浏览器）；插件的 Host 进程是 Node 子进程，没有 Electron `BrowserWindow` API。所以 0.10.0 把这一层做成**应用内独立窗口**（不再打开浏览器、没有地址栏，窗口控制由插件自己绘制）；macOS 上另见下一节的「系统窗口」，用系统 WebView 实现真正的独立窗口。
+- **为什么不是 Electron 原生窗口？** DSH Desktop 的 Electron 主进程只保留一个应用窗口，主窗口的 `setWindowOpenHandler` 拒绝用 `window.open` 创建第二个原生窗口（http/https 只交给系统浏览器）；插件的 Host 进程是 Node 子进程，没有 Electron `BrowserWindow` API。所以 0.10.0 把这一层做成**应用内独立窗口**（不再打开浏览器、没有地址栏，窗口控制由插件自己绘制）；macOS / Windows 上另见下一节的「系统窗口」，分别用系统 WebView 与 WebView2 实现真正的独立窗口。
 - 限制：它仍在 DSH 主窗口内部（不是操作系统级第二窗口），不能拖到 DSH 窗口之外。
 
-## 系统窗口（macOS 原生独立窗口，0.11.0）
+## 系统窗口（原生独立窗口，0.11.0 macOS / 0.14.0 Windows）
 
-- 右键会话 → **分屏插件** → **进入系统窗口**：在 macOS 上打开一个**真正的操作系统窗口**。它不是 DSH 主窗口里的一层浮层，可以拖到主窗口之外、单独缩放和关闭，不会打开浏览器，也没有地址栏。该会话的系统窗口已经打开时，菜单显示 **退出系统窗口**；在窗口里点关闭（或从菜单退出）后，菜单会自动回到「进入系统窗口」。
+- 右键会话 → **分屏插件** → **进入系统窗口**：在 macOS 或 Windows 上打开一个**真正的操作系统窗口**。它不是 DSH 主窗口里的一层浮层，可以拖到主窗口之外、单独缩放和关闭，不会打开浏览器，也没有地址栏。该会话的系统窗口已经打开时，菜单显示 **退出系统窗口**；在窗口里点关闭（或从菜单退出）后，菜单会自动回到「进入系统窗口」。
 - 窗口内容仍然是这个会话的真实客户端：**左侧栏不显示**（会话占满窗口），**右侧栏、对话头部、输入框、视图页等都照常保留**，右上角的「打开右侧边栏」依然可用。
-- **实现方式**：DSH 没有向插件开放 Electron `BrowserWindow`，所以插件 Host 用系统自带的 AppKit `NSWindow` + `WKWebView`（`osascript` 运行 `native/system-window.jxa`）打开窗口，并让这个 WebView 加载 Host 的**本机认证 Web 客户端**。认证 URL 由 Host 在进程内生成，只传给本机 Helper，**不会返回给渲染层**；哈希标记让同一份客户端代码在窗口内切换成「系统窗口模式」。
-- **平台**：目前仅 macOS。Windows / Linux 上点击会提示改用「在独立窗口打开」，不会退回浏览器。窗口标题跟随会话标题；关闭窗口即结束 Helper 进程，退出 DSH 时也会一并关闭这些窗口。
-- 窗口是辅助型进程，不占 Dock 图标，因此**没有最小化按钮**（避免最小化后无法从 Dock 恢复）；提供关闭、缩放和标题栏拖动，可用「调度中心」或窗口本身切换。
+- **实现方式（macOS）**：DSH 没有向插件开放 Electron `BrowserWindow`，所以插件 Host 用系统自带的 AppKit `NSWindow` + `WKWebView`（`osascript` 运行 `native/system-window.jxa`）打开窗口，并让这个 WebView 加载 Host 的**本机认证 Web 客户端**。认证 URL 由 Host 在进程内生成，只传给本机 Helper，**不会返回给渲染层**；哈希标记让同一份客户端代码在窗口内切换成「系统窗口模式」。
+- **实现方式（Windows）**：Host 用 `powershell.exe` 启动 `native/system-window.ps1`，由 PowerShell + WinForms 建窗口、内嵌 WebView2 控件加载同一份认证 Web 客户端。`native/webview2/` 随包附带 WebView2 SDK（`Microsoft.Web.WebView2.Core.dll`、`Microsoft.Web.WebView2.WinForms.dll` 与 x64/arm64 的 `WebView2Loader.dll`，BSD-3-Clause），每个窗口使用独立的临时 WebView2 配置目录；关窗或退出 DSH 时连同 `msedgewebview2` 进程树一起结束。
+- **平台**：macOS 与 Windows。Linux（或 Web 客户端）上点击会提示改用「进入独立窗口」，不会退回浏览器。Windows 缺少 **Microsoft Edge WebView2 运行时**时会提示先安装再试。窗口标题跟随会话标题；关闭窗口即结束 Helper 进程，退出 DSH 时也会一并关闭这些窗口。
+- macOS 的 Helper 是辅助型进程，不占 Dock 图标，因此**没有最小化按钮**（避免最小化后无法从 Dock 恢复）；提供关闭、缩放和标题栏拖动。Windows 使用系统标题栏，最小化 / 最大化 / 关闭都可用。
+- **菜单定位**：DSH 的弹层菜单用 CSS Anchor Positioning（`position-anchor` + `anchor()`）把自己挂在触发按钮旁边；Chromium（主窗口）支持，但 macOS 的 WKWebView 不支持，菜单会退到窗口左上角、盖住标题栏。系统窗口模式下插件会检测这一能力缺失，并按菜单自带的 `data-anchor-side` / `data-anchor-align`（以及模型选择器的锚点自定义属性）在触发按钮旁重新定位：向上打开的菜单贴着按钮上沿、右对齐，并限制最大高度。
 - **注意**：系统窗口是独立的 Web 客户端，所以桌面端专属能力（如原生文件拖拽、系统目录选择器）在窗口内的行为以 Web 客户端为准；会话数据与主窗口共享同一个 Host，输入、流式输出和右侧栏功能正常。
 
 ![系统窗口：不再显示左侧栏，右侧栏与对话区照常保留](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/system-window.png)
@@ -243,7 +245,7 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 - `window.__dshSplitWorkspace.closeFloat(sessionId)`：关闭浮窗（不放回分屏）。
 - `window.__dshSplitWorkspace.floats()`：当前浮窗的会话 id 列表（按创建顺序）。
 - `window.__dshSplitWorkspace.openSystemWindow(sessionId)`：在应用内独立窗口打开该会话（`openIndependentWindow` 是同一功能的别名）。
-- `window.__dshSplitWorkspace.openNativeWindow(sessionId)`：在 macOS 系统窗口（原生独立窗口）打开该会话；其他平台会提示不支持。
+- `window.__dshSplitWorkspace.openNativeWindow(sessionId)`：在原生系统窗口（macOS / Windows）打开该会话；Linux 或非桌面版会提示改用独立窗口。
 - `window.__dshSplitWorkspace.closeNativeWindow(sessionId)`：关闭该会话的系统窗口。
 - `window.__dshSplitWorkspace.nativeWindows()`：当前已打开系统窗口的会话 id 列表。
 - `window.__dshSplitWorkspace.appWindow()`：当前独立窗口状态（`{ id, minimized, maximized }` 或 `null`）。
@@ -285,8 +287,11 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 | `16-standalone` | 应用内独立窗口组件、窗口层与恢复胶囊，以及系统窗口的模式切换与请求 |
 | `17-api-apply` | `window.__dshSplitWorkspace` API、`apply()` 与导出 |
 | `native/system-window.jxa` | macOS 系统窗口 Helper（AppKit `NSWindow` + `WKWebView`，由 Host 通过 `osascript` 启动） |
+| `native/system-window.ps1` | Windows 系统窗口 Helper（PowerShell + WinForms 宿主 WebView2，由 Host 通过 `powershell.exe` 启动） |
+| `native/webview2/` | 随包附带的 WebView2 SDK 二进制（BSD-3-Clause，约 1.1 MB，含 x64 / arm64 loader） |
 
 - `npm run build`：重新生成 `lib/client.js`；`npm test` 会先跑 `build:check`，源码/产物不一致会失败。
+- `npm run check:anchor`：在真实 WKWebView 里验证系统窗口的菜单锚点回落（macOS 专用；CI 在 Ubuntu 上不跑）。
 - 为什么不用打包器：DSH 客户端只加载一个 `<plugin>/client.js`，片段共享同一个 module-loader 闭包，按顺序拼接即可；这样发布包保持零依赖、无构建依赖。
 - 修改代码时改 `src/client/` 对应片段，然后 `npm run build`；`lib/client.js` 顶部有一行 GENERATED 标记。
 
@@ -312,7 +317,8 @@ will land:
 - 没有窗格数量上限；持久化树会校验（会话唯一、深度），损坏的树会被丢弃，而不是恢复一个坏掉的工作区。
 - 「浮窗」是应用内窗口，不是 Electron 原生第二窗口：DSH Desktop 主窗口禁用了 `window.open`，Web 客户端也没有会话深链；浮窗复用真实会话组件、可拖动缩放，但仍在 DSH 主窗口内渲染（详见上面的「为什么浮窗不是系统级独立窗口？」）。
 - 浮窗和分屏窗格互斥；同一会话不会同时以两种形态渲染，避免共享编辑器冲突。
-- 「独立窗口」是应用内窗口：它不打开浏览器、没有地址栏，但不能移出 DSH 主窗口。macOS 桌面版另提供「系统窗口打开」（系统 WebView，独立窗口）；DSH 本身仍未向插件开放 Electron `BrowserWindow`。独立窗口内的会话同样互斥于分屏和浮窗。
+- 「独立窗口」是应用内窗口：它不打开浏览器、没有地址栏，但不能移出 DSH 主窗口。桌面版（macOS / Windows）另提供「进入系统窗口」（系统 WebView / WebView2，真正的独立窗口）；DSH 本身仍未向插件开放 Electron `BrowserWindow`。独立窗口内的会话同样互斥于分屏和浮窗。
+- 「系统窗口」是独立的 Web 客户端：需要 DSH 桌面版 + macOS，或 Windows + Microsoft Edge WebView2 运行时；它不共享主窗口的桌面专属能力（原生文件拖拽、系统目录选择器）。
 - 持久化递归深度上限为 32 层，是为了手改数据时的栈安全，不是窗格上限。
 - 隐藏的原生会话仍在遮罩下流式运行；窗格重新挂载原生输入框，所以每个窗格自己的输入框拥有该会话的编辑器。
 - 窗格重命名拒绝空会话（原生重命名对话框同样如此）。
@@ -330,8 +336,9 @@ MIT。见 `THIRD-PARTY-NOTICES.md`。
 as you need, side by side, stacked, or in a 2×2 / automatic grid.** Any
 conversation can also become a movable, resizable **floating window**, switch
 between the two modes at any time, move into an **in-app independent window**
-(close / minimize / maximize / fullscreen), or — on macOS Desktop — open a real
-**native OS window** (system WebView, no browser, no left sidebar) for one
+(close / minimize / maximize / fullscreen), or — in DSH Desktop on macOS or
+Windows — open a real **native OS window** (system WebView on macOS, WebView2 on
+Windows; no browser, no left sidebar) for one
 conversation. The session menu's **Split plugin** submenu holds the
 `Join split / Leave split` toggle together with all three window surfaces,
 each showing **Exit …** while that surface is open.
@@ -351,7 +358,8 @@ attachments, `/` commands, `ask_user_question`, approvals and view tabs.
 **Search terms / 搜索关键词**：split screen, split view, split pane, multi-pane,
 multi-session, multi-window, tiled workspace, unlimited panes, DSH Desktop,
 分屏, 分屏插件, 多窗格, 多窗口, 多会话, 左右分屏, 上下分屏, 并排, 田字布局,
-系统窗口, 原生窗口, macOS system window, native window.
+系统窗口, 原生窗口, macOS system window, Windows system window, WebView2,
+native window.
 
 The pane engine is derived from
 [dsh-split-screen](https://github.com/YEYEYEYESHIFU/dsh-split-screen) 1.7.0
@@ -368,7 +376,7 @@ layout, the unlimited pane count, rename/copy/maximize and the compact toolbar.
 | DSH Desktop (`dsh-app://`) | Daily use with full desktop features (recommended) | `desktop`, managed by the app |
 
 - DSH 0.2.0 / 0.2.1 are supported; this build targets 0.2.1-rc.2.
-- The package ships a prebuilt `lib/client.js`, has no native modules and no install scripts, and is identical on macOS / Windows / Linux.
+- The package ships a prebuilt `lib/client.js` with no Node native modules and no install scripts; the client behaves the same on macOS / Windows / Linux. The Windows system window ships the WebView2 SDK (about 1.1 MB, BSD-3-Clause) and only needs the Microsoft Edge WebView2 Runtime (built into Windows 11, present on Windows 10 with a current Edge).
 - The plugin itself makes no network requests at runtime.
 
 **Web: online install**
@@ -537,6 +545,38 @@ logic stays unchanged.
   window) and cannot be dragged outside it. If DSH later exposes native
   multi-window support, this layer can become a real system window without
   changing the conversation-switching logic.
+
+### System window (native OS window, macOS + Windows)
+
+- Right-click a conversation → **Split plugin** → **Enter system window** opens a
+  **real OS window**: movable outside the DSH main window, resizable and closable
+  on its own, with no browser and no address bar. While it is open the menu shows
+  **Exit system window**, and closing the window itself flips the menu back.
+- The window shows the real conversation client: **no left sidebar** (the
+  conversation fills the window) while the **right sidebar**, header, composer and
+  view tabs stay available.
+- **macOS** uses an AppKit `NSWindow` + `WKWebView` helper
+  (`native/system-window.jxa`, started with `osascript`); **Windows** uses a
+  WinForms window hosting WebView2 (`native/system-window.ps1`, started with
+  `powershell.exe`). Both load the Host's **locally authenticated web client**:
+  the URL is minted inside the Host and never returned to the renderer, and a hash
+  marker turns the same client into the single-conversation system-window mode.
+- **Platforms**: macOS and Windows. Linux (or the Web client) is told to use the
+  independent window instead, and a missing Microsoft Edge WebView2 Runtime is
+  reported explicitly on Windows. The helper ships with the package (about 1.1 MB)
+  and needs no local build; each window gets its own temporary WebView2 profile,
+  and closing it ends the whole helper process tree.
+- **Menu placement**: the stock DSH menus portal themselves next to their trigger
+  with CSS Anchor Positioning (`position-anchor` + `anchor()`). Chromium supports
+  it, WebKit/WKWebView does not, so dropdowns would otherwise fall back to the
+  window's top-left corner. In the system window the plugin detects that gap and
+  re-anchors those panels next to the trigger they opened from, using the
+  `data-anchor-side` / `data-anchor-align` attributes and the model selector's
+  anchor custom property; upward menus sit above the trigger, right-aligned and
+  height-capped.
+- Desktop-only capabilities (native file drag, system directory picker) follow the
+  Web client inside the window; conversations share the same Host, so input,
+  streaming and the right sidebar work normally.
 
 ### Settings entry
 
@@ -815,9 +855,14 @@ architecture the upstream plugin uses.
 
 - `npm run build` regenerates `lib/client.js`; `npm test` runs `build:check` first
   and fails when the source and artifact disagree.
+- `npm run check:anchor` verifies the system window's menu anchoring fallback in a
+  real WKWebView (macOS only; CI runs on Ubuntu).
 - No bundler: the DSH client loads exactly one `<plugin>/client.js`, the sections
   share one module-loader closure, and ordered concatenation keeps the published
   package dependency-free.
+- `native/` holds the platform helpers: `system-window.jxa` (macOS AppKit),
+  `system-window.ps1` (Windows PowerShell + WinForms + WebView2) and the vendored
+  `webview2/` SDK binaries (BSD-3-Clause; see `THIRD-PARTY-NOTICES.md`).
 - Edit the matching `src/client/` section and run `npm run build`; the generated
   file starts with a GENERATED marker.
 
@@ -841,6 +886,9 @@ architecture the upstream plugin uses.
   has no Electron `BrowserWindow` API. It opens no browser and has no address
   bar, but it cannot leave the DSH main window; a conversation in it is likewise
   detached from split and float.
+- The **system window** is a second OS-level web client: it needs DSH Desktop on
+  macOS, or Windows with the Microsoft Edge WebView2 Runtime, and it does not
+  carry desktop-only integrations such as native file drag.
 - The persisted recursion depth is capped at 32 levels as a stack-safety guard
   for hand-edited payloads, not as a pane limit.
 - The hidden stock conversation still streams under the overlay; panes re-host

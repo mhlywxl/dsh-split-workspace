@@ -4,6 +4,28 @@
 
 This file records public releases of `dsh-split-workspace`; each version ends with a one-line English summary.
 
+## [0.14.0] - 2026-11-19
+
+### Added
+
+- **Windows 也有真正的系统窗口了（PowerShell + WebView2）。** 右键会话 → 分屏插件 → **进入系统窗口** 以前只在 macOS 可用，Windows 上点击会提示“系统窗口仅支持 macOS 桌面版”。现在 Host 在 Windows 上启动 `native/system-window.ps1`，由 PowerShell + WinForms 建一个真正的 OS 窗口、内嵌 WebView2 控件加载 Host 的**本机认证 Web 客户端**；窗口可拖出 DSH 主窗口、单独缩放/最小化/关闭，不显示左侧栏，右侧栏与对话区照常保留，菜单的「进入 / 退出系统窗口」状态与关窗同步逻辑和 macOS 完全一致。
+- Windows 实现随包附带 WebView2 SDK（`Microsoft.Web.WebView2.Core.dll`、`Microsoft.Web.WebView2.WinForms.dll`、x64 / arm64 `WebView2Loader.dll`，BSD-3-Clause，约 1.1 MB），不需要本地编译；每个窗口使用独立的临时 WebView2 配置目录，关窗/退出 DSH 时连同 `msedgewebview2` 进程树一起结束。
+- 缺少 Microsoft Edge WebView2 运行时时，菜单会给出明确提示（而不是笼统失败）：Windows 11 自带、Windows 10 装过新版 Edge 即有。
+- 平台判断收敛为 `nativeWindowSupported()`（macOS / Windows），Linux 与 Web 客户端仍提示改用「进入独立窗口」；Windows 会等待 Helper 启动窗口，如果进程在启动窗口内退出，会把原因（WebView2 缺失 / Helper 资源损坏）返回给客户端。
+
+### Fixed
+
+- **修复 macOS 系统窗口里弹层菜单跑到窗口左上角。** 模型选择器、权限 / 审查模式等下拉菜单在系统窗口里会出现在左上角、盖住标题栏。根因是 DSH 的 Menu 用 **CSS Anchor Positioning**（`position-anchor` + `anchor()`）把 portal 面板挂在触发按钮旁，而 macOS 系统窗口是 **WKWebView（WebKit）**，没有实现这两个特性：`anchor()` 声明被丢弃，菜单只剩 CSS 兜底的 `top: 12px; left: 12px`。Chromium 主窗口支持该特性，所以只在系统窗口复现。
+  - 修复：系统窗口模式检测到缺少锚点定位能力时安装轻量回落——按菜单自带的 `data-anchor-side` / `data-anchor-align`，以及模型选择器共享在触发按钮上的 `--dsh-model-anchor` 自定义属性，重新计算面板的 `top / bottom / left / right`；向上打开的菜单贴着按钮上沿、右对齐，并按可用空间限制最大高度。菜单关闭即停止跟随；引擎支持锚点定位时完全不生效。
+  - 验证：新增 `npm run check:anchor`，在真实 WKWebView 里跑两个场景（模型选择器菜单、stock Menu portal）：修复前菜单位于 (12, 12)，修复后分别落在触发按钮上方 8px / 4px 且右对齐。
+
+### Changed
+
+- `native/system-window.jxa` 保持 macOS 实现不变；Host 抽出 `systemWindowCommand()` 统一生成两个平台的 Helper 命令（Windows 用 base64 传递认证 URL，避免 PowerShell 参数解析）。
+- README / 使用帮助 / 提示文案同步更新为「macOS / Windows」。
+
+**English summary:** The native system window now works on Windows too: the Host starts `native/system-window.ps1`, a PowerShell + WinForms window hosting WebView2 (vendored SDK, about 1.1 MB, BSD-3-Clause) that loads the Host's authenticated web client with the same hash-marker mode and menu state sync as macOS. Each window gets its own temporary WebView2 profile, closing it ends the whole helper process tree, and a missing Microsoft Edge WebView2 Runtime is reported explicitly. Linux and the Web client still fall back to the independent window. The macOS system window also fixes dropdown menus (model selector, permission presets) landing in the window's top-left corner: WebKit drops CSS anchor positioning, so the plugin re-anchors those portaled panels next to the trigger they opened from, with height caps; `npm run check:anchor` verifies it in a real WKWebView.
+
 ## [0.13.2] - 2026-11-19
 
 ### Fixed

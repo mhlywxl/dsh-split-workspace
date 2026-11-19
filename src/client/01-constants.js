@@ -3,7 +3,7 @@
     // ---------------------------------------------------------------------
 
     const PLUGIN_ID = "dsh-split-workspace";
-    const PLUGIN_VERSION = "0.13.2";
+    const PLUGIN_VERSION = "0.14.0";
     const LOG_PREFIX = "[dsh-split-workspace]";
     const TREE_KEY = "dsh.split-workspace.tree.v1";
     const OPEN_KEY = "dsh.split-workspace.open.v2";
@@ -694,7 +694,7 @@
       floatClosed: "Floating window closed",
       floatHint: "Drag the title bar to move · drag an edge to resize",
       helpFloat: "Right-click a conversation → Split plugin → Enter floating window detaches it into a movable window; Dock to split puts it back.",
-      helpIndependent: "Right-click a conversation → Split plugin → Enter independent window / Enter system window. The independent window is an app-internal single-conversation window; the system window (macOS) is a real OS window with no left sidebar and the stock right sidebar. Neither opens a browser.",
+      helpIndependent: "Right-click a conversation → Split plugin → Enter independent window / Enter system window. The independent window is an app-internal single-conversation window; the system window (macOS, or Windows with the WebView2 Runtime) is a real OS window with no left sidebar and the stock right sidebar. Neither opens a browser.",
       menuSystemWindow: "Open in independent window",
       systemWindowOpened: "Opened in an independent window",
       systemWindowFailed: "Could not open the independent window",
@@ -702,7 +702,8 @@
       systemWindowClosing: "Closing the system window…",
       systemWindowNativeOpened: "Entered the system window",
       systemWindowNativeClosed: "System window closed",
-      systemWindowUnsupported: "The native system window needs macOS + DSH Desktop. Use Enter independent window instead.",
+      systemWindowUnsupported: "The native system window needs DSH Desktop on macOS or Windows. Use Enter independent window instead.",
+      systemWindowWebView2Missing: "The native system window needs the Microsoft Edge WebView2 Runtime. Install it, then try again, or use Enter independent window.",
       menuGroup: "Split plugin",
       menuIndependentOpen: "Enter independent window",
       menuIndependentClose: "Exit independent window",
@@ -863,7 +864,7 @@
       floatClosed: "浮窗已关闭",
       floatHint: "拖动标题栏移动 · 拖动边缘调整大小",
       helpFloat: "右键会话 → 分屏插件 → 进入浮窗，可把该会话变成独立浮窗；浮窗标题栏的“回到分屏”可放回分屏。",
-      helpIndependent: "右键会话 → 分屏插件 → 进入独立窗口 / 进入系统窗口。独立窗口在应用内单独显示该会话（关闭 / 最小化 / 最大化 / 全屏）；系统窗口（macOS）是真正的操作系统窗口，不显示左侧栏、保留右侧栏。两者都不依赖浏览器。",
+      helpIndependent: "右键会话 → 分屏插件 → 进入独立窗口 / 进入系统窗口。独立窗口在应用内单独显示该会话（关闭 / 最小化 / 最大化 / 全屏）；系统窗口（macOS，或装了 WebView2 运行时的 Windows）是真正的操作系统窗口，不显示左侧栏、保留右侧栏。两者都不依赖浏览器。",
       menuSystemWindow: "在独立窗口打开",
       systemWindowOpened: "已在独立窗口中打开",
       systemWindowFailed: "无法打开独立窗口",
@@ -871,7 +872,8 @@
       systemWindowClosing: "正在关闭系统窗口…",
       systemWindowNativeOpened: "已进入系统窗口",
       systemWindowNativeClosed: "已关闭系统窗口",
-      systemWindowUnsupported: "系统窗口仅支持 macOS 桌面版；可改用“进入独立窗口”。",
+      systemWindowUnsupported: "系统窗口仅支持 DSH 桌面版（macOS / Windows）；可改用“进入独立窗口”。",
+      systemWindowWebView2Missing: "系统窗口需要 Microsoft Edge WebView2 运行时，请先安装再试；也可改用“进入独立窗口”。",
       menuGroup: "分屏插件",
       menuIndependentOpen: "进入独立窗口",
       menuIndependentClose: "退出独立窗口",

@@ -251,14 +251,233 @@
       window.setTimeout(attempt, 200);
     }
 
+    // ---------------------------------------------------------------------
+    // CSS anchor positioning fallback (native system window only)
+    //
+    // DSH's menus place portaled panels with CSS anchor positioning
+    // (`position-anchor` + `anchor()` insets). Chromium implements it; WebKit /
+    // WKWebView does not, so every dropdown loses its insets and falls back to
+    // `top: 12px; left: 12px` — the top-left corner of the window, on top of the
+    // header. This fallback reproduces the placement from the trigger that
+    // opened the panel, using the placement attributes the stock Menu primitive
+    // already publishes (`data-anchor-side` / `data-anchor-align`) and the
+    // anchor custom properties the model selector keeps inline. It is inert on
+    // engines with real anchor positioning support.
+    // ---------------------------------------------------------------------
+
+    // dsv-anchor-fallback:start — self-contained fallback (WKWebView fixture test).
+    /** True when the engine can lay out `position: fixed` panels from anchors. */
+    function cssAnchorPositioningSupported() {
+      try {
+        return typeof CSS !== "undefined"
+          && typeof CSS.supports === "function"
+          && CSS.supports("position-anchor: --dsv-probe")
+          && CSS.supports("top: anchor(top)");
+      } catch {
+        return false;
+      }
+    }
+
+    // dsv-anchor-math:start — pure placement math (unit-tested in test.mjs).
+    function anchorPanelInsets(anchorRect, viewport, side, align, gap) {
+      const margin = 12;
+      const width = Math.max(0, viewport.width);
+      const height = Math.max(0, viewport.height);
+      const insets = {
+        left: null, right: null, top: null, bottom: null,
+        maxWidth: Math.max(120, width - margin * 2), maxHeight: null,
+      };
+      if (side === "top" || side === "bottom") {
+        const space = side === "top"
+          ? anchorRect.top - gap - margin
+          : height - anchorRect.bottom - gap - margin;
+        insets.maxHeight = Math.max(80, Math.min(space, height - margin * 2));
+        if (side === "top") insets.bottom = height - anchorRect.top + gap;
+        else insets.top = anchorRect.bottom + gap;
+        if (align === "end") insets.right = Math.max(margin, width - anchorRect.right);
+        else insets.left = Math.max(margin, anchorRect.left);
+        return insets;
+      }
+      if (side === "right" || side === "left") {
+        insets.top = Math.max(margin, Math.min(anchorRect.top, height - margin - 80));
+        insets.maxHeight = Math.max(80, height - margin * 2);
+        if (side === "right") insets.left = anchorRect.right + gap;
+        else insets.right = Math.max(margin, width - anchorRect.left + gap);
+        return insets;
+      }
+      return null;
+    }
+    // dsv-anchor-math:end
+
+    /** Apply one computed placement to a portaled panel. */
+    function applyAnchorPanelInsets(panel, anchor, side, align, gap) {
+      const rect = anchor.getBoundingClientRect();
+      if (rect.width <= 0 && rect.height <= 0) return false;
+      const insets = anchorPanelInsets(rect, {
+        width: document.documentElement.clientWidth || window.innerWidth || 0,
+        height: document.documentElement.clientHeight || window.innerHeight || 0,
+      }, side, align, gap);
+      if (insets === null) return false;
+      const style = panel.style;
+      style.position = "fixed";
+      style.top = insets.top === null ? "auto" : insets.top + "px";
+      style.bottom = insets.bottom === null ? "auto" : insets.bottom + "px";
+      style.left = insets.left === null ? "auto" : insets.left + "px";
+      style.right = insets.right === null ? "auto" : insets.right + "px";
+      style.maxHeight = insets.maxHeight + "px";
+      style.maxWidth = insets.maxWidth + "px";
+      try { panel.dataset.dsvAnchorFallback = ""; } catch {}
+      return true;
+    }
+
+    /** The trigger a panel points at, when DSH shares it as a custom property
+        with the trigger (the model selector does: --dsh-model-anchor). */
+    function anchorFromCustomProperty(panel) {
+      if (panel.style === undefined) return null;
+      let name = "";
+      let value = "";
+      for (let index = 0; index < panel.style.length; index += 1) {
+        const property = panel.style.item(index);
+        if (typeof property !== "string" || !property.startsWith("--")) continue;
+        const candidate = String(panel.style.getPropertyValue(property) || "").trim();
+        if (!candidate.startsWith("--")) continue;
+        name = property;
+        value = candidate;
+        break;
+      }
+      if (name === "" || value === "") return null;
+      for (const node of document.querySelectorAll("[style]")) {
+        if (node === panel || panel.contains(node)) continue;
+        if (node.hasAttribute("data-menu-backing")) continue;
+        if (String(node.style.getPropertyValue(name) || "").trim() !== value) continue;
+        const rect = node.getBoundingClientRect();
+        if (rect.width > 0 || rect.height > 0) return node;
+      }
+      return null;
+    }
+
+    /** Re-place stock menus while CSS anchor positioning is unavailable. */
+    function installAnchorFallback() {
+      if (cssAnchorPositioningSupported()) return null;
+      if (document.body === null || document.body === undefined) return null;
+      const state = { target: null, at: 0 };
+      const timers = new Map();
+
+      const remember = (element) => {
+        if (element === null || element === undefined) return;
+        state.target = element;
+        state.at = Date.now();
+      };
+      const buttonFrom = (target) => (target instanceof Element
+        ? target.closest('button, [role="button"], [role="menuitem"], [aria-haspopup]')
+        : null);
+      const onPointerDown = (event) => { remember(buttonFrom(event.target)); };
+      const onPointerOver = (event) => {
+        remember(event.target instanceof Element ? event.target.closest('[aria-haspopup="menu"]') : null);
+      };
+      const onKeyDown = (event) => {
+        if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
+        remember(buttonFrom(event.target));
+      };
+      window.addEventListener("pointerdown", onPointerDown, true);
+      window.addEventListener("pointerover", onPointerOver, true);
+      window.addEventListener("keydown", onKeyDown, true);
+
+      /** A trigger is usable when it is still mounted and has a box. Menu rows
+          stay usable: a submenu anchors to the row that opened it. */
+      const visibleAnchor = (element) => {
+        if (!(element instanceof Element) || element.isConnected !== true) return null;
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 || rect.height > 0 ? element : null;
+      };
+      const recentAnchor = () => {
+        if (state.target === null || Date.now() - state.at > 4000) return null;
+        return visibleAnchor(state.target);
+      };
+      const activeAnchor = () => {
+        const active = document.activeElement;
+        if (!(active instanceof Element)) return null;
+        // Focus usually moves into the opened menu; a menu row is not a trigger.
+        if (active.closest('[role="menu"], [role="listbox"]') !== null) return null;
+        return visibleAnchor(active.closest('button, [role="button"], [aria-haspopup]') || active);
+      };
+
+      const stop = (panel) => {
+        const timer = timers.get(panel);
+        if (timer === undefined) return;
+        try { window.clearInterval(timer); } catch {}
+        timers.delete(panel);
+      };
+
+      const update = (panel, anchor) => {
+        if (panel.isConnected !== true) { stop(panel); return false; }
+        const current = anchor.isConnected === true ? anchor : (recentAnchor() || activeAnchor());
+        if (current === null) return false;
+        const menu = panel.hasAttribute("data-anchor-side");
+        const side = menu ? (panel.getAttribute("data-anchor-side") || "bottom") : "top";
+        const align = menu ? (panel.getAttribute("data-anchor-align") || "start") : "end";
+        const gap = String(panel.style.getPropertyValue("--dsh-model-anchor") || "") === "" ? 4 : 8;
+        return applyAnchorPanelInsets(panel, current, side, align, gap);
+      };
+
+      const place = (panel) => {
+        if (!(panel instanceof Element) || timers.has(panel)) return false;
+        const menu = panel.hasAttribute("data-anchor-side");
+        const model = panel.style !== undefined
+          && String(panel.style.getPropertyValue("--dsh-model-anchor") || "") !== "";
+        if (!menu && !model) return false;
+        const anchor = anchorFromCustomProperty(panel) || recentAnchor() || activeAnchor();
+        if (anchor === null) return false;
+        update(panel, anchor);
+        timers.set(panel, window.setInterval(() => { update(panel, anchor); }, 150));
+        return true;
+      };
+
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          for (const node of record.addedNodes) {
+            if (!(node instanceof Element)) continue;
+            if (place(node)) continue;
+            for (const panel of node.querySelectorAll("[data-anchor-side]")) place(panel);
+          }
+          for (const node of record.removedNodes) {
+            if (!(node instanceof Element)) continue;
+            stop(node);
+            for (const panel of node.querySelectorAll("[data-anchor-side]")) stop(panel);
+          }
+        }
+      });
+      try {
+        observer.observe(document.body, { childList: true, subtree: false });
+      } catch {
+        return null;
+      }
+
+      return () => {
+        try { observer.disconnect(); } catch {}
+        window.removeEventListener("pointerdown", onPointerDown, true);
+        window.removeEventListener("pointerover", onPointerOver, true);
+        window.removeEventListener("keydown", onKeyDown, true);
+        for (const [, timer] of timers) {
+          try { window.clearInterval(timer); } catch {}
+        }
+        timers.clear();
+      };
+    }
+    // dsv-anchor-fallback:end
+
     /** Boot hook: returns a disposer only in a native system window. */
     function bootSystemWindow() {
       const sessionId = systemWindowSessionId();
       if (sessionId === null) return null;
       try { document.documentElement.dataset.dsvSystemWindow = "1"; } catch {}
       const disposeLayout = watchSystemWindowLayout();
+      const disposeAnchorFallback = installAnchorFallback();
       activateSystemWindowSession(sessionId);
-      return disposeLayout;
+      return () => {
+        try { disposeLayout(); } catch {}
+        try { if (typeof disposeAnchorFallback === "function") disposeAnchorFallback(); } catch {}
+      };
     }
 
     // The Host owns the system windows. This store mirrors their session ids
@@ -364,9 +583,10 @@
             return;
           }
           const code = payload !== null && payload !== undefined ? payload.error : undefined;
-          showPaneToast(t(code === "unsupported-platform" || code === "not-desktop"
+          const failure = code === "unsupported-platform" || code === "not-desktop"
             ? "systemWindowUnsupported"
-            : "systemWindowFailed"), true);
+            : (code === "webview2" ? "systemWindowWebView2Missing" : "systemWindowFailed");
+          showPaneToast(t(failure), true);
         }).catch(() => {
           showPaneToast(t("systemWindowFailed"), true);
         });
