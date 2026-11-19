@@ -68,6 +68,8 @@ dsh --profile web
 - 分屏入口：点击侧边栏底部（设置旁）的分屏图标，或把侧边栏里的会话拖到对话区。
 - 打开浏览器/桌面端控制台执行 `window.__dshSplitWorkspace.health()`，可看到版本、窗格数和几何状态。
 - 如果看不到分屏入口：确认插件已启用且没有报错；如果侧边栏底部的 footer 没有渲染，插件会在对话区左下角显示兜底的分屏按钮。
+- 恢复分屏后窗格标题栏的按钮点不动：0.13.1 及更早版本在桌面端会把被覆盖会话的原生窗口拖动区留在画布上方，点击被 Electron 原生层吞掉（浏览器里不会出现，所以 Web 端测不出来）。0.13.2 给窗格标题栏声明 `-webkit-app-region: no-drag` 修复。
+- 恢复分屏后窗格标题栏的按钮点不动：0.13.1 及更早版本在桌面端会把被覆盖会话的原生窗口拖动区留在画布上方，点击被 Electron 原生层吞掉（浏览器里不会出现，所以 Web 端测不出来）。0.13.2 给窗格标题栏声明 `-webkit-app-region: no-drag` 修复。
 
 ### 开始分屏
 
@@ -417,6 +419,7 @@ dsh --profile web
 - Entry points: the split icon in the sidebar footer (beside Settings), or drag a conversation from the sidebar onto the conversation column.
 - Run `window.__dshSplitWorkspace.health()` in the browser/desktop console to see the version, pane count and geometry.
 - If the split entry is missing: make sure the plugin is enabled and has no error. When the stock sidebar footer does not render this plugin's action, the plugin shows a fallback split button at the conversation area's bottom-left corner.
+- Pane header buttons dead after restoring a minimized split: 0.13.1 and earlier left the covered conversation's native window-drag region above the canvas on Desktop, so Electron swallowed those clicks before the DOM (browsers ignore app-region, which is why the web build could not reproduce it). 0.13.2 declares `-webkit-app-region: no-drag` on the pane header.
 
 **Start splitting**
 

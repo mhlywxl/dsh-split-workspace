@@ -279,6 +279,12 @@
       // window with a first-class surface inside the application.
       appWindow: null,
     };
+    // True while the split-view panel is minimizing itself: its page stays
+    // mounted for a couple of frames (the column switch is deferred so the
+    // click paints first), and its "selecting the panel restores the split"
+    // effect must not undo that minimize in the meantime.
+    let splitPanelMinimizeInFlight = false;
+
     const runtimeListeners = new Set();
     function runtimeSnapshot() {
       return runtimeState;

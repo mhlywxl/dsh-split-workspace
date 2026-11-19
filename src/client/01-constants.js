@@ -3,7 +3,7 @@
     // ---------------------------------------------------------------------
 
     const PLUGIN_ID = "dsh-split-workspace";
-    const PLUGIN_VERSION = "0.13.1";
+    const PLUGIN_VERSION = "0.13.2";
     const LOG_PREFIX = "[dsh-split-workspace]";
     const TREE_KEY = "dsh.split-workspace.tree.v1";
     const OPEN_KEY = "dsh.split-workspace.open.v2";
@@ -587,6 +587,8 @@
       panelPickTitle: "Choose conversations to split",
       panelPickHint: "Select at least two conversations — the split view opens as soon as you confirm.",
       panelPickConfirm: "Open split view",
+      returningTitle: "Back to the conversation",
+      returningHint: "The split is minimized — switching to the conversation view…",
       panelNeedTwo: "Select at least two conversations to open the split view.",
       panelDisabledTitle: "Split view is disabled",
       panelDisabledBody: "Enable it to open the split view again. Your saved layout is kept.",
@@ -754,6 +756,8 @@
       panelPickTitle: "选择要分屏的会话",
       panelPickHint: "至少选择两个会话，确定后立即显示分屏界面。",
       panelPickConfirm: "打开分屏",
+      returningTitle: "正在返回会话",
+      returningHint: "分屏已最小化，正在切换到会话视图…",
       panelNeedTwo: "至少选择两个会话才能打开分屏视图。",
       panelDisabledTitle: "分屏视图已禁用",
       panelDisabledBody: "启用后可重新打开分屏视图，已保存的布局会保留。",

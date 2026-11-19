@@ -193,6 +193,7 @@
       const [pos, setPos] = React.useState(defaultPos);
       const [dragging, setDragging] = React.useState(false);
 
+
       const clampToWork = React.useCallback((next) => {
         const work = chipWorkRect();
         const el = ref.current;
@@ -1083,7 +1084,7 @@
       // Selecting the panel is also the restore affordance for a minimized
       // split: clear the flag so the (warm, still mounted) canvas shows again.
       React.useEffect(() => {
-        if (runtime.minimized !== true) return;
+        if (runtime.minimized !== true || splitPanelMinimizeInFlight === true) return;
         try {
           setRuntime({ minimized: false });
           writeMinimized(false);
@@ -1091,6 +1092,23 @@
       }, [runtime.minimized]);
       const leaves = state.root === null ? [] : leafOf(state.root, []);
       const splitReady = leaves.length >= 2 && runtime.enabled === true && runtime.safeMode !== true;
+      // Panel-minimize: the canvas is already hidden and the column switch to a
+      // native conversation is deferred one task (that mount costs ~0.5s). Paint
+      // this card in the gap so the click never leaves a frozen blank column.
+      if (splitReady && runtime.minimized === true) {
+        return h("div", { className: "dsv-panel-picker", "data-plugin": PLUGIN_ID },
+          h("div", { className: "dsv-modal dsv-panel-card dsv-panel-card-narrow" },
+            h("div", { className: "dsv-modal-head" },
+              h("span", { className: "dsv-panel-glyph", "aria-hidden": "true" }, h(SplitViewGlyph, { size: 18 })),
+              h("span", { className: "dsv-modal-title" }, t("returningTitle")),
+            ),
+            h("div", { className: "dsv-panel-loading" },
+              h("span", { className: "dsv-panel-spinner", "aria-hidden": "true" }),
+              h("span", null, t("returningHint")),
+            ),
+          ),
+        );
+      }
       return h("div", { className: "dsv-panel-root", "data-plugin": PLUGIN_ID },
         splitReady ? null : h(PanelSplitPicker, null));
     }

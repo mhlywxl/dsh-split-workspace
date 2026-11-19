@@ -4,6 +4,21 @@
 
 This file records public releases of `dsh-split-workspace`; each version ends with a one-line English summary.
 
+## [0.13.2] - 2026-11-19
+
+### Fixed
+
+- **真正修复「分屏最小化后再恢复，窗格标题栏按钮点不动」。** 根因是桌面端原生窗口的拖动区：被分屏盖住的原生会话仍然挂在画布下面，它的标题栏（栈顶 0–76px）声明了 Electron 的 `-webkit-app-region: drag`。原生拖动区在 DOM 之前吞掉鼠标事件，所以画布看着正常、`elementFromPoint` 也指向按钮，但点击根本进不了页面（实测没有任何 pointerdown；同一位置在浏览器里正常，因此 Web 端无法复现）。
+  - 从「分屏视图」面板直接创建分屏时下面没有原生会话，按钮一直是好的；一旦最小化回到会话再恢复，原生会话挂载在画布下方，它的拖动区正好覆盖窗格标题栏（44–81px），按钮就全部失效。
+  - 修复：给窗格标题栏声明 `-webkit-app-region: no-drag`，把这块区域从原生拖动区里扣掉。桌面端实测：恢复分屏后点击标题栏的 ⤢/⧉/?/分屏/关闭 全部恢复响应，帮助卡片正常弹出。
+
+### Changed
+
+- **面板里「最小化分屏」不再卡住点击。** 原来在“分屏视图”面板里最小化会同步离开面板并挂载整棵原生会话视图（实测点击后约 580ms 才完成这一帧，期间界面冻结）。现在先隐藏画布、显示恢复胶囊和「正在返回会话」提示卡（点击后一两帧内可见），再把“切回原生会话”放到下一帧任务里执行；剩余的对话视图挂载成本仍在，但不再阻塞点击反馈。
+- 面板最小化期间，「分屏视图」页不会再被“选中面板即恢复分屏”的逻辑撤销（内部加了 in-flight 标记）。
+
+**English summary:** The real cause of dead pane-header buttons after restoring a minimized split was Electron's native window-drag region: the covered stock conversation stays mounted behind the overlay and its header declares `-webkit-app-region: drag` over the top ~76px of the column, so the compositor swallowed those clicks before they reached the DOM (no pointerdown at all; browsers ignore app-region, which is why the web build never reproduced it). The pane header now declares `-webkit-app-region: no-drag`, carving itself out of that region. Also, minimizing from the split-view panel no longer freezes the click: the canvas hides and a "returning to the conversation" card paints first, while the main-column switch (a full native conversation mount) runs in the next task.
+
 ## [0.13.1] - 2026-11-19
 
 ### Fixed

@@ -867,6 +867,32 @@ test("a restored canvas is always interactive, so pane header buttons keep worki
   }
 });
 
+
+test("Electron window-drag regions cannot eat pane header clicks", () => {
+  const client = read("lib/client.js");
+  const css = read("src/client/02-styles.js");
+  // The stock conversation stays mounted behind the overlay and keeps its
+  // native window-drag region over the top of the column; a covered stock
+  // header therefore swallows clicks before the DOM. Our pane header must
+  // subtract itself from that region with -webkit-app-region: no-drag.
+  const headerRules = [...css.matchAll(/\.dsv-pane-header\s*\{[^}]*\}/g)].map((m) => m[0]);
+  assert(headerRules.length > 0, "the pane header rule is missing");
+  assert(headerRules.some((rule) => rule.includes("-webkit-app-region: no-drag")),
+    "the pane header must opt out of native window-drag regions (covered stock headers swallow clicks otherwise)");
+  // Canvas interactivity self-check and the panel-minimize transition.
+  for (const token of ["canvasRepairs", "returningTitle", "dsv-panel-loading", "splitPanelMinimizeInFlight"]) {
+    assert(client.includes(token) || css.includes(token), "missing restored-canvas support: " + token);
+  }
+  const panelMin = client.slice(
+    client.indexOf("splitPanelMinimizeInFlight = true;"),
+    client.indexOf("const finish = () => {"));
+  assert(panelMin.length > 0, "the panel minimize branch is missing");
+  assert(panelMin.includes("window.requestAnimationFrame(() => {"),
+    "panel minimize must switch the main column in its own task, after the canvas hides");
+  assert(panelMin.indexOf("splitPanelMinimizeInFlight = false;") !== -1,
+    "panel minimize must clear the in-flight flag when the column switch runs");
+});
+
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length > 0) {
   for (const failure of failures) console.error(`FAILED: ${failure.name}\n${failure.error.stack}`);

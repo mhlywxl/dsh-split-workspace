@@ -312,12 +312,25 @@
       // to the stock conversation view in the same commit (the panel is
       // leaving, so there is no overlay to fade).
       if (splitPanelActive()) {
+        splitPanelMinimizeInFlight = true;
+        try { setRuntime({ minimized: true }); writeMinimized(true); } catch {}
+        // Leaving the plugin page for the stock conversation mounts a whole
+        // native conversation synchronously (~0.5s on a live desktop). Run it
+        // as its own task so the click paints immediately: the canvas hides and
+        // the chip + "returning to the conversation" card appear first; only
+        // then does the column switch (and its mount) block.
+        const switchPanel = () => {
+          try { leaveSplitPanel(); } catch {}
+          splitPanelMinimizeInFlight = false;
+          scheduleRightbarHeal(450);
+        };
         try {
-          setRuntime({ minimized: true });
-          writeMinimized(true);
-        } catch {}
-        leaveSplitPanel();
-        scheduleRightbarHeal(450);
+          window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(switchPanel);
+          });
+        } catch {
+          switchPanel();
+        }
         return;
       }
       const finish = () => {

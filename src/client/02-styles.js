@@ -536,6 +536,14 @@
       flex: none; height: 36px; display: flex; align-items: center; gap: 8px;
       padding: 0 4px 0 12px; border-bottom: 1px solid var(--dsw-alias-border-l2);
       cursor: grab; user-select: none;
+      /* The stock conversation stays mounted behind this overlay and its header
+         (class *__header) declares an Electron window-drag region
+         (-webkit-app-region: drag) over the top of the column. Native drag
+         regions swallow clicks BEFORE the DOM, so whenever a covered stock
+         conversation exists — i.e. after restoring a split that was minimized to
+         a conversation — our pane header buttons were click-dead. A no-drag
+         region on our own header subtracts that area again. */
+      -webkit-app-region: no-drag;
     }
     .dsv-pane-header:active { cursor: grabbing; }
     /* Slim header for narrow panes: one 30px row instead of the tall stock
@@ -1378,6 +1386,12 @@
     .dsv-panel-card { width: min(620px, 100%); max-height: min(640px, 100%); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.16); }
     .dsv-panel-card-narrow { width: min(460px, 100%); }
     .dsv-panel-glyph { flex: none; display: grid; place-items: center; width: 22px; height: 22px; color: var(--dsw-static-deepseek-500); }
+    /* Shown for the one/two frames in which the split-view panel has hidden the
+       canvas but is still waiting for the deferred switch to the stock
+       conversation (that switch mounts a whole native conversation). */
+    .dsv-panel-loading { display: flex; align-items: center; gap: 9px; padding: 14px 18px 16px; font-size: 12px; line-height: 18px; color: var(--dsw-alias-label-secondary); }
+    .dsv-panel-spinner { flex: none; width: 13px; height: 13px; border-radius: 50%; border: 1.6px solid color-mix(in srgb, var(--dsw-static-deepseek-500) 35%, transparent); border-top-color: var(--dsw-static-deepseek-500); animation: dsv-spin .7s linear infinite; }
+    @keyframes dsv-spin { to { transform: rotate(360deg); } }
     /* While the OS window is being resized, cut every pane transition: the
        shells' percentage widths already follow the live window edge, and a
        180ms width/height transition would chase each resize frame (visible
