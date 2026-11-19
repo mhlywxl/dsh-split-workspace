@@ -140,6 +140,12 @@ dsh --profile web
 - macOS 的 Helper 是辅助型进程，不占 Dock 图标，因此**没有最小化按钮**（避免最小化后无法从 Dock 恢复）；提供关闭、缩放和标题栏拖动。Windows 使用系统标题栏，最小化 / 最大化 / 关闭都可用。
 - **菜单定位**：DSH 的弹层菜单用 CSS Anchor Positioning（`position-anchor` + `anchor()`）把自己挂在触发按钮旁边；Chromium（主窗口）支持，但 macOS 的 WKWebView 不支持，菜单会退到窗口左上角、盖住标题栏。系统窗口模式下插件会检测这一能力缺失，并按菜单自带的 `data-anchor-side` / `data-anchor-align`（以及模型选择器的锚点自定义属性）在触发按钮旁重新定位：向上打开的菜单贴着按钮上沿、右对齐，并限制最大高度。
 - **注意**：系统窗口是独立的 Web 客户端，所以桌面端专属能力（如原生文件拖拽、系统目录选择器）在窗口内的行为以 Web 客户端为准；会话数据与主窗口共享同一个 Host，输入、流式输出和右侧栏功能正常。
+- **失败诊断（Windows）**：打不开系统窗口时，Host 会把 helper 的阶段标记和错误写进 `%TEMP%\dsh-split-workspace-system-window.log`（长 base64 令牌会脱敏），失败的 `detail` 也会打到开发者控制台。也可以绕开 DSH 直接跑 helper 自测（会打开一个连接到 `127.0.0.1:9` 的空窗口；能打开说明脚本本身正常，控制台报错就是根因）：
+
+  ```powershell
+  $p = Get-ChildItem $env:APPDATA, $env:LOCALAPPDATA -Recurse -Filter system-window.ps1 -Depth 10 -ErrorAction SilentlyContinue | Select-Object -First 1
+  powershell -NoProfile -ExecutionPolicy Bypass -File $p.FullName -UrlB64 aHR0cDovLzEyNy4wLjAuMTo5Lw== -WebView2Dir (Join-Path $p.DirectoryName 'webview2')
+  ```
 
 ![系统窗口：不再显示左侧栏，右侧栏与对话区照常保留](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/system-window.png)
 
@@ -577,6 +583,12 @@ logic stays unchanged.
 - Desktop-only capabilities (native file drag, system directory picker) follow the
   Web client inside the window; conversations share the same Host, so input,
   streaming and the right sidebar work normally.
+- **Diagnosing failures (Windows)**: the Host writes the helper's stage markers and error output to `%TEMP%\dsh-split-workspace-system-window.log` (long base64 launch tokens are redacted), and prints the failure `detail` to the Developer Tools console. You can also run the helper directly (it opens an empty window pointing at `127.0.0.1:9`; if that window opens, the script itself is fine and the console error is the cause):
+
+  ```powershell
+  $p = Get-ChildItem $env:APPDATA, $env:LOCALAPPDATA -Recurse -Filter system-window.ps1 -Depth 10 -ErrorAction SilentlyContinue | Select-Object -First 1
+  powershell -NoProfile -ExecutionPolicy Bypass -File $p.FullName -UrlB64 aHR0cDovLzEyNy4wLjAuMTo5Lw== -WebView2Dir (Join-Path $p.DirectoryName 'webview2')
+  ```
 
 ### Settings entry
 

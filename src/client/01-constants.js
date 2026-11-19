@@ -3,7 +3,7 @@
     // ---------------------------------------------------------------------
 
     const PLUGIN_ID = "dsh-split-workspace";
-    const PLUGIN_VERSION = "0.14.0";
+    const PLUGIN_VERSION = "0.14.1";
     const LOG_PREFIX = "[dsh-split-workspace]";
     const TREE_KEY = "dsh.split-workspace.tree.v1";
     const OPEN_KEY = "dsh.split-workspace.open.v2";
@@ -697,7 +697,7 @@
       helpIndependent: "Right-click a conversation → Split plugin → Enter independent window / Enter system window. The independent window is an app-internal single-conversation window; the system window (macOS, or Windows with the WebView2 Runtime) is a real OS window with no left sidebar and the stock right sidebar. Neither opens a browser.",
       menuSystemWindow: "Open in independent window",
       systemWindowOpened: "Opened in an independent window",
-      systemWindowFailed: "Could not open the independent window",
+      systemWindowFailed: "Could not open the system window. Use Enter independent window instead.",
       systemWindowOpening: "Opening the system window…",
       systemWindowClosing: "Closing the system window…",
       systemWindowNativeOpened: "Entered the system window",
@@ -867,7 +867,7 @@
       helpIndependent: "右键会话 → 分屏插件 → 进入独立窗口 / 进入系统窗口。独立窗口在应用内单独显示该会话（关闭 / 最小化 / 最大化 / 全屏）；系统窗口（macOS，或装了 WebView2 运行时的 Windows）是真正的操作系统窗口，不显示左侧栏、保留右侧栏。两者都不依赖浏览器。",
       menuSystemWindow: "在独立窗口打开",
       systemWindowOpened: "已在独立窗口中打开",
-      systemWindowFailed: "无法打开独立窗口",
+      systemWindowFailed: "无法打开系统窗口；可改用“进入独立窗口”。",
       systemWindowOpening: "正在打开系统窗口…",
       systemWindowClosing: "正在关闭系统窗口…",
       systemWindowNativeOpened: "已进入系统窗口",

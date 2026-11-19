@@ -44,6 +44,14 @@ $script:form = $null
 $script:web = $null
 $script:dataDir = $null
 
+# Progress markers: the Host captures this stream into its log, so a failed
+# window can be traced to the stage that broke even when no exception text
+# reaches the user.
+Write-DsvError ('helper start ps=' + $PSVersionTable.PSVersion.ToString()
+    + ' edition=' + [string]$PSVersionTable.PSEdition
+    + ' os=' + [System.Environment]::OSVersion.VersionString
+    + ' arch=' + [string]$env:PROCESSOR_ARCHITECTURE)
+
 try {
     # ---- target ----------------------------------------------------------
     try {
@@ -104,7 +112,8 @@ public static extern bool SetDllDirectory(string path);
     # runtime is a common, actionable failure: report it with its own code so
     # the client can explain what to install instead of a generic error.
     try {
-        $null = [Microsoft.Web.WebView2.Core.CoreWebView2Environment]::GetAvailableBrowserVersionString()
+        $runtimeVersion = [Microsoft.Web.WebView2.Core.CoreWebView2Environment]::GetAvailableBrowserVersionString()
+        Write-DsvError ('assets ok, WebView2 runtime ' + $runtimeVersion)
     } catch {
         Exit-Fail 'Microsoft Edge WebView2 Runtime is not installed' 3
     }
@@ -223,6 +232,7 @@ public static extern bool SetDllDirectory(string path);
         [System.Windows.Forms.Application]::Exit()
     })
 
+    Write-DsvError 'window created, entering the message loop'
     [System.Windows.Forms.Application]::Run($form)
     exit 0
 } catch {

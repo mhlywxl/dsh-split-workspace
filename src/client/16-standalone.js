@@ -583,6 +583,9 @@
             return;
           }
           const code = payload !== null && payload !== undefined ? payload.error : undefined;
+          if (payload !== null && payload !== undefined && typeof payload.detail === "string" && payload.detail !== "") {
+            try { console.warn("[dsh-split-workspace] system window failed:", payload.detail); } catch {}
+          }
           const failure = code === "unsupported-platform" || code === "not-desktop"
             ? "systemWindowUnsupported"
             : (code === "webview2" ? "systemWindowWebView2Missing" : "systemWindowFailed");

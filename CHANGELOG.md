@@ -4,6 +4,15 @@
 
 This file records public releases of `dsh-split-workspace`; each version ends with a one-line English summary.
 
+## [0.14.1] - 2026-11-19
+
+### Fixed
+
+- **Windows 系统窗口失败时现在有可诊断的日志。** 0.14.0 把 helper 的 stdout/stderr 通过文件描述符直接交给日志文件，Windows 上可能既拿不到输出、也看不到失败原因（表现为提示“无法打开窗口”，但 `%TEMP%\dsh-split-workspace-system-window.log` 是空文件）。现在 Host 改用管道捕获 helper 输出并被自己写入日志：先记录 `opening … helper present=…`，失败时记录 `helper exit code=…` 和完整输出（长 base64 令牌自动脱敏）；Windows helper 也会输出 `helper start`、`assets ok, WebView2 runtime …`、`window created` 等进度标记。失败响应额外带 `detail`，客户端会把它打印到开发者控制台。
+- **修正失败提示文案。** 通用失败原来显示“无法打开独立窗口”，容易和「进入独立窗口」混淆；现在显示“无法打开系统窗口；可改用‘进入独立窗口’。”，英文同步。
+
+**English summary:** Failed Windows system windows are now diagnosable: the Host captures the helper's stdout/stderr over pipes and writes it to `%TEMP%\dsh-split-workspace-system-window.log` (long base64 launch tokens are redacted), logs `helper exit code=…` plus the output, and the Windows helper emits `helper start` / `assets ok, WebView2 runtime …` / `window created` progress markers. The failure response carries a `detail` the client prints to the console, and the generic toast no longer says "independent window".
+
 ## [0.14.0] - 2026-11-19
 
 ### Added

@@ -566,6 +566,11 @@ test("native system window: Host route, macOS helper and client entry", () => {
     "system-window.ps1",
     "native/webview2",
     "taskkill.exe",
+    "redactNativeWindowText",
+    "helper exit",
+    "opening session=",
+    " present=",
+    "detail:",
   ]) {
     assert(host.includes(token), `missing native system window Host support: ${token}`);
   }
@@ -609,6 +614,9 @@ test("Windows system window: PowerShell + WebView2 helper assets", () => {
     "WebView2Loader.dll",
     "UrlB64",
     "Application]::Run",
+    "helper start",
+    "assets ok, WebView2 runtime",
+    "window created, entering the message loop",
   ]) {
     assert(helper.includes(token), `missing Windows helper support: ${token}`);
   }
