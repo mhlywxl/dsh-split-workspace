@@ -233,7 +233,7 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 
 ## 命令
 
-- `window.__dshSplitWorkspace.health()`：版本、宿主、窗格、几何、持久化树、崩溃保护。
+- `window.__dshSplitWorkspace.health()`：版本、宿主、窗格、几何、持久化树、崩溃保护；`panelWarm` 表示画布正处在暖缓存隐藏中，`canvasRepairs` 记录画布显示后自检修复交互样式的次数（正常为 0）。
 - `window.__dshSplitWorkspace.split(sessionId)`：把会话加为窗格。
 - `window.__dshSplitWorkspace.addToSplit(sessionId)` / `removeFromSplit(sessionId)`：加入 / 退出分屏（未分屏时先进入待分屏）。
 - `window.__dshSplitWorkspace.float(sessionId)`：把会话变成浮窗（自动从分屏/待分屏移出）。
@@ -743,7 +743,7 @@ architecture the upstream plugin uses.
 
 ### Commands
 
-- `window.__dshSplitWorkspace.health()` — version, host, panes, geometry,
+- `window.__dshSplitWorkspace.health()` — version, host, panes, geometry, `panelWarm` (canvas hidden in the warm hold) and `canvasRepairs` (interactivity self-checks that had to repair a canvas after showing it; 0 in normal use),
   persisted tree, crash guard.
 - `window.__dshSplitWorkspace.split(sessionId)` — add a session as a pane.
 - `window.__dshSplitWorkspace.addToSplit(sessionId)` /

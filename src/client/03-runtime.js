@@ -270,6 +270,9 @@
       // The canvas is mounted but hidden for a short warm window while the
       // split is minimized / another panel owns the column. Diagnostics only.
       panelWarm: false,
+      // Number of times the canvas showed up in a dead (not hit-testable)
+      // state after a restore and had to be repaired. Should stay 0.
+      canvasRepairs: 0,
       updateReady: null,
       // One conversation in an in-app independent window. DSH Desktop has no
       // plugin-facing BrowserWindow API, so this replaces the old browser
@@ -484,6 +487,7 @@
         active: runtimeState.active,
         panelSelected: splitPanelActive(),
         panelWarm: runtimeState.panelWarm === true,
+        canvasRepairs: runtimeState.canvasRepairs,
         minimized: runtimeState.minimized === true,
         performance: runtimeState.performance === true,
         resizeFreeze: resizeFreezeOn(),

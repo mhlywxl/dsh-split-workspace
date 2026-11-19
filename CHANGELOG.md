@@ -4,6 +4,18 @@
 
 This file records public releases of `dsh-split-workspace`; each version ends with a one-line English summary.
 
+## [0.13.1] - 2026-11-19
+
+### Fixed
+
+- **修复「分屏最小化 → 恢复分屏」后窗格内顶部按钮点不动的问题。** 恢复出来的画布如果残留了隐藏阶段的交互样式（暖缓存隐藏、窗口缩放冻结被最小化打断、被取消的窗格拖动），画面会正常绘制但整块区域对鼠标透明，窗格标题栏的 ⤢ / ⧉ / ? / 分屏 / 关闭 全部失效。现在：
+  - 暖缓存隐藏只使用 `visibility: hidden`（它本身就不参与命中测试），不再写 `pointer-events: none`，从源头消除「可见但点不到」的状态；
+  - 新增不变量样式：画布只要不是暖缓存隐藏，就强制可见且 `pointer-events: auto`；窗格标题栏及其按钮再单独声明 `pointer-events: auto`，即使祖先被误设为透明也能点；
+  - 画布每次显示后一帧做一次自检：清理残留的冻结 transform/尺寸、恢复为可交互、清掉被中断拖动遗留的 `data-dsv-source` 透明面板，并把修复次数记录到 `health().canvasRepairs`（正常应为 0）。
+- `health()` 新增 `canvasRepairs`。
+
+**English summary:** Fixed pane header buttons staying dead after restoring a minimized split: a canvas that is visible but left with hidden-phase interaction styles (warm hold, a window-resize freeze interrupted by minimize, a cancelled pane drag) now gets repaired. The warm hold only uses `visibility: hidden` (which already excludes hit-testing), a new invariant rule keeps every non-warm canvas visible and clickable, pane header buttons re-assert `pointer-events: auto`, and a one-frame self-check after each show clears leftover freeze/transform styles and interrupted-drag sources. Repairs are counted in `health().canvasRepairs` (0 in normal use).
+
 ## [0.13.0] - 2026-11-19
 
 ### Added

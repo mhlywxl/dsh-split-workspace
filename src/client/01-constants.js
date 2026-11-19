@@ -3,7 +3,7 @@
     // ---------------------------------------------------------------------
 
     const PLUGIN_ID = "dsh-split-workspace";
-    const PLUGIN_VERSION = "0.13.0";
+    const PLUGIN_VERSION = "0.13.1";
     const LOG_PREFIX = "[dsh-split-workspace]";
     const TREE_KEY = "dsh.split-workspace.tree.v1";
     const OPEN_KEY = "dsh.split-workspace.open.v2";

@@ -556,6 +556,73 @@
         };
       }, [warmEligible, visible, warmCold]);
 
+      // Invariant: a canvas that (re)appears must be hit-testable. A warm hold
+      // that never fully cleared, a window-resize freeze interrupted by a
+      // minimize, an interrupted pane drag or a hot-swapped older instance can
+      // leave interaction styles behind so that the panes paint but every
+      // control inside them — most visibly the pane header buttons — is dead
+      // after "restore split". Repair once, one frame after the canvas shows,
+      // and count it in health().canvasRepairs (should stay 0).
+      React.useEffect(() => {
+        if (visible !== true) return undefined;
+        let raf = 0;
+        try {
+          raf = window.requestAnimationFrame(() => {
+            raf = 0;
+            const el = overlayRef.current;
+            if (el === null || el === undefined || !el.isConnected) return;
+            let repaired = false;
+            try {
+              if (el.style.transform !== "" || el.style.width !== "") {
+                // A freeze survived the hidden phase: drop it and re-write the
+                // real box (React may skip style writes it believes unchanged).
+                clearCanvasFreeze(el);
+                const box = measureColumnBounds();
+                if (box !== null && box !== undefined && box.ok === true) {
+                  el.style.left = box.left + "px";
+                  el.style.right = box.right + "px";
+                  el.style.top = box.top + "px";
+                  el.style.bottom = box.bottom + "px";
+                }
+                repaired = true;
+              }
+              const computed = window.getComputedStyle(el);
+              if (computed.pointerEvents === "none" || computed.visibility === "hidden") {
+                el.style.setProperty("pointer-events", "auto", "important");
+                el.style.setProperty("visibility", "visible", "important");
+                repaired = true;
+              }
+              for (const header of el.querySelectorAll(".dsv-pane-header")) {
+                if (window.getComputedStyle(header).pointerEvents === "none") {
+                  header.style.setProperty("pointer-events", "auto", "important");
+                  repaired = true;
+                }
+              }
+              // A pane whose drag-to-reflow was interrupted keeps the inline
+              // pointer-events:none / opacity:0 and stays dead to the mouse.
+              if (reflowState.active !== true && reflowState.settling !== true) {
+                for (const source of el.querySelectorAll("[data-dsv-source]")) {
+                  source.removeAttribute("data-dsv-source");
+                  if (source.style !== null && source.style !== undefined) {
+                    source.style.pointerEvents = "";
+                    source.style.opacity = "";
+                  }
+                  repaired = true;
+                }
+              }
+            } catch {}
+            if (repaired) {
+              try { setRuntime({ canvasRepairs: runtimeState.canvasRepairs + 1 }); } catch {}
+            }
+          });
+        } catch {}
+        return () => {
+          if (raf !== 0) {
+            try { window.cancelAnimationFrame(raf); } catch {}
+          }
+        };
+      }, [visible]);
+
       // One TOC grip per live pane (see tocGripSync): hide the portal copies
       // mounted by the hidden stock view / IM view and keep every pane's grip
       // inside that pane. Portals mount asynchronously, so a body childList

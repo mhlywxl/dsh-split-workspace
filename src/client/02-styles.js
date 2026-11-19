@@ -1360,7 +1360,20 @@
        ⇄ restore and panel ⇄ conversation switches feel instant inside the warm
        window. It also means a warm split keeps doing layout work for streaming
        output until the window expires, and then its tree is dropped. */
-    .dsv-overlay.dsv-warm { visibility: hidden !important; pointer-events: none !important; }
+    .dsv-overlay.dsv-warm { visibility: hidden !important; }
+    /* Invariant: a canvas that is not warm-held is visible AND clickable. A
+       visible-but-click-through overlay (left behind by an interrupted warm
+       hold or a hot-swapped older instance) is the worst state: the panes paint
+       but every control inside them is dead. visibility:hidden already keeps
+       the warm canvas out of hit-testing, so the warm rule no longer needs
+       pointer-events at all, and this rule re-asserts interactivity whenever the
+       class is gone. */
+    .dsv-overlay:not(.dsv-warm) { visibility: visible !important; pointer-events: auto !important; }
+    /* Belt and braces for the reported symptom: if an ancestor ever ends up with
+       pointer-events:none, the pane header row (where every per-pane action
+       lives) still wins its own hit-testing. */
+    .dsv-overlay:not(.dsv-warm) .dsv-pane-header,
+    .dsv-overlay:not(.dsv-warm) .dsv-pane-header .dsv-pane-btn { pointer-events: auto; }
     .dsv-panel-picker { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 24px; }
     .dsv-panel-card { width: min(620px, 100%); max-height: min(640px, 100%); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.16); }
     .dsv-panel-card-narrow { width: min(460px, 100%); }

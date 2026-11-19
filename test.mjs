@@ -837,6 +837,36 @@ test("switching split ⇄ conversation ⇄ plugin panels keeps the pane tree war
   assert(restore.includes("currentSessionId() === sid"), "the deferred alignment must be skipped when already aligned");
 });
 
+
+test("a restored canvas is always interactive, so pane header buttons keep working", () => {
+  const client = read("lib/client.js");
+  const css = read("src/client/02-styles.js");
+  // Invariant: warm-hidden canvases are non-interactive by visibility alone.
+  assert(/\.dsv-overlay\.dsv-warm\s*\{\s*visibility: hidden !important;\s*\}/.test(css),
+    "the warm rule must hide the canvas with visibility:hidden only");
+  assert(!/\.dsv-overlay\.dsv-warm\s*\{[^}]*pointer-events/.test(css),
+    "the warm rule must not leave pointer-events behind (a stale value makes a restored canvas click-through)");
+  // Non-warm canvases are forced visible + clickable, header buttons included.
+  for (const token of [
+    ".dsv-overlay:not(.dsv-warm) { visibility: visible !important; pointer-events: auto !important; }",
+    ".dsv-overlay:not(.dsv-warm) .dsv-pane-header",
+    ".dsv-overlay:not(.dsv-warm) .dsv-pane-header .dsv-pane-btn",
+    "canvasRepairs",
+  ]) {
+    assert(css.includes(token) || client.includes(token), "missing restored-canvas interactivity support: " + token);
+  }
+  // One frame after showing, the canvas self-checks: drop a leftover freeze,
+  // restore pointer-events/visibility, clear interrupted-drag transparent panes.
+  for (const token of [
+    'el.style.setProperty("pointer-events", "auto", "important")',
+    'el.style.setProperty("visibility", "visible", "important")',
+    "canvasRepairs: runtimeState.canvasRepairs + 1",
+    'for (const source of el.querySelectorAll("[data-dsv-source]"))',
+  ]) {
+    assert(client.includes(token), "missing canvas interactivity self-check: " + token);
+  }
+});
+
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length > 0) {
   for (const failure of failures) console.error(`FAILED: ${failure.name}\n${failure.error.stack}`);
