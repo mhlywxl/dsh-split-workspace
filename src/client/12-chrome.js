@@ -163,20 +163,28 @@
       return { left, top, width, height };
     }
 
-    /** Draggable, edge-snapping restore chip shown while the split is
-        minimized. It is confined to the conversation workspace (never the
-        sidebar or the macOS traffic-light corner) and defaults to the
-        workspace's bottom-left every time the split is minimized. */
+    /** Draggable restore chip shown while the split is minimized. It is
+        confined to the conversation workspace (never the sidebar or the macOS
+        traffic-light corner), can be dropped anywhere, and snaps to the NEAREST
+        EDGE on release — the position along that edge is kept, so it can sit
+        anywhere on any edge instead of only in the four corners. The chosen
+        position persists across minimize cycles. */
     function MinimizedChip() {
       const MARGIN = 18;
       const ref = React.useRef(null);
       const dragRef = React.useRef(null);
       const defaultPos = () => {
-        try { safeRemove(CHIP_KEY); } catch {}
         const work = chipWorkRect();
         const el = ref.current;
         const width = el ? el.offsetWidth : 229;
         const height = el ? el.offsetHeight : 42;
+        const saved = readChipPos();
+        if (saved !== null) {
+          return {
+            x: Math.min(Math.max(saved.x, work.left + MARGIN), Math.max(work.left + MARGIN, work.left + work.width - width - MARGIN)),
+            y: Math.min(Math.max(saved.y, work.top + MARGIN), Math.max(work.top + MARGIN, work.top + work.height - height - MARGIN)),
+          };
+        }
         return {
           x: work.left + MARGIN,
           y: work.top + work.height - height - MARGIN,
@@ -197,6 +205,9 @@
       }, []);
 
       React.useEffect(() => {
+        // Bring a restored position back inside the current work area after the
+        // layout has been measured (the first render may predate it).
+        setPos((current) => clampToWork(current));
         const onResize = () => setPos((current) => clampToWork(current));
         window.addEventListener("resize", onResize);
         return () => window.removeEventListener("resize", onResize);
@@ -233,11 +244,22 @@
         const width = el.offsetWidth;
         const height = el.offsetHeight;
         const base = drag.last !== null ? drag.last : { x: el.offsetLeft, y: el.offsetTop };
-        const snapped = {
-          x: base.x + width / 2 < work.left + work.width / 2 ? work.left + MARGIN : work.left + work.width - width - MARGIN,
-          y: base.y + height / 2 < work.top + work.height / 2 ? work.top + MARGIN : work.top + work.height - height - MARGIN,
-        };
-        setPos(clampToWork(snapped));
+        // Snap to the nearest EDGE only. The coordinate along that edge keeps
+        // the drop position, so the chip can rest anywhere on any edge — not
+        // just in the four corners.
+        const leftDist = base.x - work.left;
+        const rightDist = work.left + work.width - (base.x + width);
+        const topDist = base.y - work.top;
+        const bottomDist = work.top + work.height - (base.y + height);
+        const nearest = Math.min(leftDist, rightDist, topDist, bottomDist);
+        const snapped = { x: base.x, y: base.y };
+        if (nearest === leftDist) snapped.x = work.left + MARGIN;
+        else if (nearest === rightDist) snapped.x = work.left + work.width - width - MARGIN;
+        else if (nearest === topDist) snapped.y = work.top + MARGIN;
+        else snapped.y = work.top + work.height - height - MARGIN;
+        const next = clampToWork(snapped);
+        setPos(next);
+        writeChipPos(next);
       };
 
       const style = { left: pos.x + "px", top: pos.y + "px", right: "auto", bottom: "auto" };
@@ -269,14 +291,21 @@
     /** Always-mounted overlay-seat chrome: the safe-mode chip (with the tree
         kept), and a "could not start" chip when a persisted split cannot take
         the viewport (geometry fail-closed) — both dismissible and never over
-        stock controls. */
-    function PluginChrome() {
+        stock controls. While the split-view panel owns the main column this
+        chrome steps aside: the panel page renders its own state card. */
+    function PluginChrome({ panelOwned }) {
       const runtime = useRuntime();
       const tree = useTree();
       const leaves = tree.root === null ? 0 : leafOf(tree.root, []).length;
       const wantsActive = runtime.enabled === true && leaves >= 2;
       const [settledBlocked, setSettledBlocked] = React.useState(false);
+      // Unconditional hooks above; the panel-owned gate belongs here, after
+      // them. An early return before useState/useEffect violated the hooks
+      // order when the split-view panel was selected (React error #300: the
+      // overlay slot entry crashed but still rendered).
+      const panelOwnedUi = panelOwned === true;
       React.useEffect(() => {
+        if (panelOwnedUi) return undefined;
         if (!wantsActive || runtime.safeMode === true || runtime.active === true) {
           setSettledBlocked(false);
           return undefined;
@@ -287,7 +316,8 @@
         return () => {
           try { window.clearTimeout(timer); } catch {}
         };
-      }, [wantsActive, runtime.safeMode, runtime.active]);
+      }, [wantsActive, runtime.safeMode, runtime.active, panelOwnedUi]);
+      if (panelOwnedUi) return null;
       if (runtime.enabled !== true) return null;
       if (runtime.minimized === true && wantsActive) {
         return h(MinimizedChip, null);
@@ -364,10 +394,18 @@
       const runtime = useRuntime();
       const appWindowState = runtime.appWindow;
       const appWindowOpen = appWindowState !== null && appWindowState !== undefined && appWindowState.minimized !== true;
+      // The canvas ALWAYS lives here, the single live pane tree. Selecting the
+      // "分屏视图" panel must not move it (the panel page below is empty and the
+      // overlay covers exactly that column), otherwise every panel ⇄ split
+      // switch would tear down and re-create N native conversations.
+      const activePanelId = typeof props.usePanelInfo === "function"
+        ? props.usePanelInfo((info) => (info !== null && info !== undefined ? info.activePanelId : null))
+        : null;
+      const panelOwned = activePanelId === SPLIT_PANEL_ID;
       return h(React.Fragment, null,
         h(WorkspaceBoundary, { key: "workspace-" + runtime.epoch },
           h(WorkspaceApp, Object.assign({}, props, { dsvAppWindowOpen: appWindowOpen }))),
-        h(PluginChrome, null),
+        h(PluginChrome, { panelOwned }),
         h(WorkspaceBoundary, { key: "floats-" + runtime.epoch }, h(FloatLayer, null)),
         h(SplitLauncherLayer, null),
         h(AppWindowChip, null),
@@ -377,6 +415,48 @@
         runtime.helpOpen === true && runtime.active !== true ? h(HelpCard, { fixed: true }) : null,
         h(UpdateNotice, null),
       );
+    }
+
+    // ---- live window-resize canvas freeze (0.12.0) -------------------------
+    // Every pane re-hosts the stock conversation view; those components
+    // re-measure their own scrollers on every size change, so a live window
+    // resize used to re-layout and re-measure N conversations on every frame
+    // (the trace showed style-recalc + per-frame chat ticks as the dominant
+    // cost, in performance mode too). Keeping the canvas's inner layout frozen
+    // at the gesture-start size and scaling the rendered layer to the live
+    // window edge removes that per-frame work: the transform is a compositor
+    // operation, and one real relayout happens at settle. Tradeoff: text is
+    // scaled (slightly stretched) for the duration of the drag and crisps up
+    // when it ends.
+    function clearCanvasFreeze(el) {
+      if (el === null || el === undefined) return;
+      try {
+        el.style.transform = "";
+        el.style.transformOrigin = "";
+        el.style.width = "";
+        el.style.height = "";
+        el.style.right = "";
+        el.style.bottom = "";
+        el.style.willChange = "";
+      } catch {}
+    }
+    /** Keep a frozen inner box but present it at the live target box. */
+    function applyCanvasFreeze(el, frozenW, frozenH, targetW, targetH, left, top) {
+      if (frozenW <= 2 || frozenH <= 2 || targetW <= 2 || targetH <= 2) return false;
+      try {
+        el.style.left = left + "px";
+        el.style.top = top + "px";
+        el.style.right = "auto";
+        el.style.bottom = "auto";
+        el.style.width = frozenW + "px";
+        el.style.height = frozenH + "px";
+        el.style.transformOrigin = "0 0";
+        // Promote the frozen layer once per gesture: the per-frame scale is a
+        // compositor transform, not a repaint of the conversation text.
+        el.style.willChange = "transform";
+        el.style.transform = "scale(" + (targetW / frozenW) + "," + (targetH / frozenH) + ")";
+        return true;
+      } catch { return false; }
     }
 
     function WorkspaceApp(props) {
@@ -412,16 +492,34 @@
       // split tree (and its observers) quiet underneath.
       const appWindowOpen = props.dsvAppWindowOpen === true;
       const active = appWindowOpen !== true && leaves.length >= 2
-        && runtime.enabled === true && runtime.safeMode !== true;
+        && runtime.enabled === true && runtime.safeMode !== true && minimized !== true;
       const [picker, setPicker] = React.useState(pickerRequest);
       const [bounds, setBounds] = React.useState({ left: 0, right: 0, top: 0, bottom: 0, ok: false });
+      // Warm hold (0.13.0): the overlay canvas is the ONE live pane tree. When
+      // the split is minimized, or another global panel (Plugins, Settings, …)
+      // takes the main column, or the "分屏视图" panel is merely selected, the
+      // canvas hides WITHOUT unmounting for WARM_HIDE_MS. Remounting N native
+      // conversations (session retain, editor guards, transcript views) was the
+      // latency behind every panel ⇄ split and minimize ⇄ restore switch; after
+      // the warm window the tree is dropped so a long-hidden split stops
+      // streaming in the background.
+      const [warmCold, setWarmCold] = React.useState(false);
       const geometryWarnedRef = React.useRef(false);
+      const overlayRef = React.useRef(null);
       // B3 "invisible active": the workspace is OPERATIONAL only when it can
       // actually render (>=2 panes AND a confident column measurement). All
       // input/observation paths gate on this, so a persisted split whose
       // geometry fails renders nothing and also does NOT eat Alt+T /
       // Alt+Shift+Arrow (the chrome chip explains the state instead).
-      const operational = active && bounds.ok === true && minimized !== true;
+      // The split-view main panel is NOT a foreign panel: the canvas covers
+      // exactly that column, so selecting it must not step aside.
+      const otherPanelActive = activePanelId !== null && activePanelId !== undefined
+        && activePanelId !== SPLIT_PANEL_ID;
+      const visible = active === true && otherPanelActive !== true;
+      const warmEligible = appWindowOpen !== true && leaves.length >= 2
+        && runtime.enabled === true && runtime.safeMode !== true;
+      const warmHold = warmEligible === true && warmCold !== true && visible !== true;
+      const operational = visible && bounds.ok === true;
 
       // The DOM session-list source (0.2.0 path) observes the document only
       // while the workspace is operational — otherwise zero observation cost.
@@ -438,6 +536,25 @@
       React.useEffect(() => {
         setRuntime({ active: operational });
       }, [operational]);
+
+      // Surface the warm-hold state for health()/diagnostics.
+      React.useEffect(() => {
+        setRuntime({ panelWarm: warmHold === true });
+      }, [warmHold]);
+
+      // Warm-hold timer: start it when the canvas becomes hidden and drop the
+      // tree (cold) once the window expires; any show resets it.
+      React.useEffect(() => {
+        if (warmEligible !== true || visible === true) {
+          if (warmCold !== false) setWarmCold(false);
+          return undefined;
+        }
+        if (warmCold === true) return undefined;
+        const timer = window.setTimeout(() => setWarmCold(true), WARM_HIDE_MS);
+        return () => {
+          try { window.clearTimeout(timer); } catch {}
+        };
+      }, [warmEligible, visible, warmCold]);
 
       // One TOC grip per live pane (see tocGripSync): hide the portal copies
       // mounted by the hidden stock view / IM view and keep every pane's grip
@@ -482,15 +599,6 @@
         };
       }, [operational, runtime.performance]);
 
-      // A plugin/skills/settings panel replaces the whole main view. The split
-      // overlay would cover it, so step aside automatically and keep the tree;
-      // the restore chip brings the split back.
-      React.useEffect(() => {
-        if (!active || minimized) return;
-        if (activePanelId === null || activePanelId === undefined) return;
-        minimizeWorkspace();
-      }, [active, minimized, activePanelId]);
-
       React.useEffect(() => {
         const onPicker = () => setPicker(pickerRequest);
         pickerListeners.add(onPicker);
@@ -523,12 +631,53 @@
       // grow over stock UI. A measurement that stops being confident
       // deactivates the workspace (render gate) and the chrome chip says so.
       React.useEffect(() => {
-        if (!active || minimized) return undefined;
+        if (!visible) return undefined;
         let raf = 0;
+        let frozen = null;
         const apply = () => {
           raf = 0;
           const next = measureColumnBounds();
           noteGeometry(next);
+          const overlayEl = overlayRef.current;
+          // Freeze is a fluidity-first tradeoff (scaled text while dragging),
+          // so it belongs to performance mode; normal mode keeps transitions
+          // and a true per-frame reflow.
+          if (overlayEl !== null && runtime.performance === true && runtime.resizeFreeze !== false && windowResizing()) {
+            // Live resize: hold the pane layout at the gesture-start size and
+            // scale the rendered layer to the current column box. No setBounds
+            // here — React must not rewrite the insets mid-gesture.
+            if (frozen !== null && (frozen.left !== next.left || frozen.top !== next.top)) {
+              // The sidebar moved (auto-collapse breakpoint): rebase.
+              clearCanvasFreeze(overlayEl);
+              frozen = null;
+            }
+            if (frozen === null) {
+              let rect = null;
+              try { rect = overlayEl.getBoundingClientRect(); } catch {}
+              if (rect !== null && rect.width > 2 && rect.height > 2) {
+                frozen = { w: Math.round(rect.width), h: Math.round(rect.height), left: next.left, top: next.top };
+              }
+            }
+            if (frozen !== null && next.ok) {
+              const targetW = window.innerWidth - next.left - next.right;
+              const targetH = window.innerHeight - next.top - next.bottom;
+              if (applyCanvasFreeze(overlayEl, frozen.w, frozen.h, targetW, targetH, next.left, next.top)) return;
+            }
+          } else if (frozen !== null) {
+            // Gesture over: drop the freeze AND write the final box directly.
+            // React may skip a style write it believes is unchanged, and the
+            // freeze left inline values (right/bottom/transform) behind.
+            clearCanvasFreeze(overlayEl);
+            frozen = null;
+            if (overlayEl !== null) {
+              try {
+                overlayEl.style.left = next.left + "px";
+                overlayEl.style.right = next.right + "px";
+                overlayEl.style.top = next.top + "px";
+                overlayEl.style.bottom = next.bottom + "px";
+              } catch {}
+            }
+          }
           // One warning per unconfident episode (cleared once geometry is
           // back), next to a REAL measurement — the render gate used to warn
           // from the placeholder bounds on every boot.
@@ -575,25 +724,34 @@
             }
           }
         } catch {}
+        const offSettle = onLayoutSettle(() => {
+          // Gesture over: the scheduled apply below drops the freeze and writes
+          // the final box in the same frame, so the canvas never spends a
+          // frame at the intermediate "explicit width cleared" state.
+          schedule();
+        });
         window.addEventListener("resize", schedule);
         document.addEventListener("visibilitychange", schedule);
         return () => {
+          offSettle();
           if (raf !== 0) window.cancelAnimationFrame(raf);
           if (observer !== null) {
             try { observer.disconnect(); } catch {}
           }
           if (transitionHost !== null) transitionHost.removeEventListener("transitionend", schedule);
           if (fallbackInterval !== 0) window.clearInterval(fallbackInterval);
+          const overlayEl = overlayRef.current;
+          if (overlayEl !== null) clearCanvasFreeze(overlayEl);
           window.removeEventListener("resize", schedule);
           document.removeEventListener("visibilitychange", schedule);
         };
-      }, [active, runtime.performance]);
+      }, [visible, runtime.performance, runtime.resizeFreeze]);
 
       // Crash-loop guard timers: a deliberate activation is persisted BEFORE it
       // can crash; a healthy, responsive workspace clears the counter after
       // HEALTHY_AFTER_MS and refreshes lastHealthyAt at most every 30s.
       React.useEffect(() => {
-        if (!active || bounds.ok !== true) return undefined;
+        if (!visible || bounds.ok !== true) return undefined;
         markActivationAttempt();
         const healthyTimer = window.setTimeout(() => { markHealthy(); }, HEALTHY_AFTER_MS);
         const refreshTimer = window.setInterval(() => { refreshHealthy(); }, HEALTHY_REFRESH_MS);
@@ -601,7 +759,7 @@
           try { window.clearTimeout(healthyTimer); } catch {}
           try { window.clearInterval(refreshTimer); } catch {}
         };
-      }, [active, bounds.ok]);
+      }, [visible, bounds.ok]);
 
       // One-time first-split tip.
       React.useEffect(() => {
@@ -807,16 +965,24 @@
         }
       };
 
-      // Render gates (after every hook): inactive/safe-mode/kill-switch →
-      // nothing; unconfident geometry → nothing. Both fail toward the stock
-      // view, never toward a wrong overlay.
-      if (!active) return null;
-      if (minimized) return null;
-      if (!bounds.ok) return null;
+      // Render gates (after every hook). Hidden states keep the canvas mounted
+      // (warm hold) so the expensive pane tree is reused on the way back; only
+      // a cold hold / disabled / <2 panes / independent window unmounts it.
+      if (visible !== true) {
+        if (warmHold !== true || bounds.ok !== true) return null;
+        return h("div", {
+          ref: overlayRef,
+          className: "dsv-overlay dsv-warm",
+          style: { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom },
+          "aria-hidden": "true",
+        }, h(WorkspaceBody, { generation }));
+      }
+      if (bounds.ok !== true) return null;
 
       return h(
         "div",
         {
+          ref: overlayRef,
           className: "dsv-overlay",
           style: { left: bounds.left, right: bounds.right, top: bounds.top, bottom: bounds.bottom },
           tabIndex: -1,
@@ -836,6 +1002,30 @@
         picker !== null && picker !== undefined ? h(SessionPicker, { request: picker, onPick: pickerPick }) : null,
         runtime.helpOpen === true ? h(HelpCard, null) : null,
       );
+    }
+
+    /** The "分屏视图" main-panel page. The live canvas is the shell.overlay
+        workspace, which stays mounted across panel ⇄ conversation switches so the
+        native pane tree is never re-created for a mere navigation; this page is
+        only the page state — the inline add-split picker while fewer than two
+        conversations are staged, and an empty column the canvas covers once the
+        split exists. */
+    function SplitPanelView() {
+      const runtime = useRuntime();
+      const state = useTree();
+      // Selecting the panel is also the restore affordance for a minimized
+      // split: clear the flag so the (warm, still mounted) canvas shows again.
+      React.useEffect(() => {
+        if (runtime.minimized !== true) return;
+        try {
+          setRuntime({ minimized: false });
+          writeMinimized(false);
+        } catch {}
+      }, [runtime.minimized]);
+      const leaves = state.root === null ? [] : leafOf(state.root, []);
+      const splitReady = leaves.length >= 2 && runtime.enabled === true && runtime.safeMode !== true;
+      return h("div", { className: "dsv-panel-root", "data-plugin": PLUGIN_ID },
+        splitReady ? null : h(PanelSplitPicker, null));
     }
 
     // ---------------------------------------------------------------------

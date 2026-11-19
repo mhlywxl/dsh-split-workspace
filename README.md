@@ -82,6 +82,15 @@ dsh --profile web
 - 右键会话 → **分屏插件**：一级菜单集中了会话的分屏与窗口操作，二级菜单包括 **加入分屏 / 退出分屏**（同一个开关，按当前状态显示）、**进入浮窗 / 退出浮窗**、**进入独立窗口 / 退出独立窗口**、**进入系统窗口 / 退出系统窗口**。每个条目都按当前状态显示“进入”或“退出”；窗口关闭（包括点窗口自身的关闭按钮）后，菜单会自动回到“进入”状态。
 - **关闭窗格（标题栏 ✕）或退出分屏时，只要剩余会话少于两个就整体退出分屏**：窗格树和所有会话的分屏状态会一起清空，不会留下「菜单里显示分屏中、却没有被选中」的残留状态。只剩一个窗格的分屏不成立，所以不保留隐藏的单窗格树。
 
+## 分屏视图菜单（左侧栏，0.12.0）
+
+- 左侧栏顶部的面板导航新增 **分屏视图** 一行，和 **插件** 同级；行首是插件的分屏图标。左下角分屏按钮、会话右键 **分屏插件** 一级菜单也用同一个图标。
+- 点击 **分屏视图**，主区切换到 **分屏视图面板**：已经有两个及以上窗格时，直接显示与“恢复分屏”相同的界面（窗格、分隔条、窗格工具栏都在这里）；还没有分屏时，页面里是 **添加分屏** 多选框，勾选两个或更多会话并确定后立即显示分屏界面。
+- 在面板里点左下角菜单的 **最小化分屏** 会回到会话界面；**退出分屏** 会清空窗格并返回会话。切到左侧栏的某个会话或插件面板时布局会保留，随时点回 **分屏视图** 继续。
+- **切换不再重建窗格（0.13.0）**：画布始终挂载在覆盖层里，只是在「分屏视图」、普通会话、最小化和插件面板之间显示/隐藏。隐藏后的 **20 秒内**窗格保持挂载（暖缓存），所以在「分屏视图 ⇄ 会话」「最小化 ⇄ 恢复分屏」之间来回切换时几乎瞬时，不会重新挂载每次都要重连会话和编辑器的原生对话；超过 20 秒才释放窗格树（对长时间最小化省资源）。隐藏期间画布的布局仍保留，因此恢复是可见性切换而不是整棵树重排。
+- **最小化胶囊（0.13.0）**：最小化后出现的「恢复分屏」胶囊可以拖到工作区任意位置，松手吸附到**最近的边缘**——沿边的位置随你放，不再只限四个角；位置会记住，下次最小化仍在原处。
+- 左下角按钮菜单里的 **重启 DSH** 图标改为绘制的 SVG（旧版使用 U+23FB 电源符号，Windows 默认字体缺这个字形，会显示成乱码方框）；菜单、侧栏、右键菜单里的图标全部是内嵌 SVG，不依赖系统字体。
+
 ## 使用帮助（界面指引）
 
 插件内的 **分屏帮助**（菜单里的「分屏帮助」、窗格标题栏的 `?`，或设置页的「分屏帮助」）现在已经带三张界面指引截图，点击缩略图可以查看大图：
@@ -136,7 +145,7 @@ dsh --profile web
 
 - **状态**：插件版本、窗格数、待分屏数、浮窗数、当前独立窗口。
 - **性能模式**：开关（默认开启），影响动画、后台观察器和拖动缩略图。
-- **操作**：添加分屏、退出分屏、最小化分屏、重置分屏、刷新界面、重启 DSH（桌面版）、帮助。
+- **操作**：打开分屏视图、添加分屏、退出分屏、最小化分屏、重置分屏、刷新界面、重启 DSH（桌面版）、帮助。
 
 设置页里的“添加分屏”会先关闭设置面板再打开多选弹框，避免弹框被设置面板遮挡；其余操作就地执行并实时刷新状态。
 
@@ -150,6 +159,10 @@ dsh --profile web
 - 拖动会话/窗格时**完全不渲染缩略图预览**（不克隆对话 DOM，也没有逐帧移动的预览窗口）；拖入目标、布局预览和放置反馈仍然保留。
 - 真实会话、输入、停止、审批、分屏 / 浮窗 / 独立窗口功能全部保留。
 
+- **0.12.0：窗口缩放不再逐帧测量。** 拖动窗口边缘缩放时，每个窗格的尺寸观察器过去会在每一帧提交新的窗格尺寸（并重建 composer 测量、重算对齐行宽），窗格越多越卡。现在缩放窗口 / 拖动分隔条期间只保留浏览器自身的 CSS 重排，所有 JS 测量与派生状态（窗格窄/短判定、composer 卡片几何、对齐行宽、浮窗钳制）统一等待手势结束后执行一次；缩放期间同时关闭窗格过渡，避免 180ms 的宽度过渡“追着”窗口边缘跑。性能模式下更进一步：**窗口缩放时画布保持手势开始时的内部布局，用 CSS transform 跟随窗口边缘缩放到新尺寸**，这样每个窗格里的原生对话不会在每一帧重新测量滚动区域，松手后再一次性重排到真实尺寸（拖动过程中文字会有轻微拉伸，松手即恢复清晰）。性能模式同样受益。
+
+开发机实测（Chromium 无头、性能模式、2 窗格、连续拖动窗口 40 步）：冻结开启 vs 关闭，整段手势的主线程任务时长中位数 **2.1s vs 3.2s**，长任务 **1 个 vs 17 个**，阻塞时间 **9ms vs 461ms**，平均帧间隔 **25.7ms vs 59.1ms**；4 窗格时长任务 **6 个 vs 38 个**、阻塞时间 **85ms vs 989ms**。面板模式（`分屏视图`）因为不再有被遮住的原生会话，剩余开销更低。
+
 **仍然可能卡的原因**：每个窗格都是一个完整的原生对话视图，N 个会话同时流式输出就是 N 份 React/DOM 渲染与滚动更新，这是 DSH 客户端本身的主要成本，插件无法消除（除非上游支持离屏暂停/虚拟化）。在 Windows + 低单核性能的机器上，建议同时保持 2–3 个活动窗格、少开浮窗、把不用的分屏最小化；输入框可切到紧凑 TUI 模式；如果装了 `dsh-prompt-history`，它的 TOC 同步在性能模式下会被暂停。
 
 诊断入口：`window.__dshSplitWorkspace.health()` 查看 `performance`、`panes`、`geometry`、`active`；用 DevTools Performance 对比开启性能模式前后的长任务。
@@ -160,6 +173,8 @@ DSH 0.2.x（含 Desktop 0.2.2-rc.3）带 HMR：新安装的插件会被热加载
 
 - 插件管理器明确提示 `restart-required`（Host 半边、被链接包的宿主模块发生变化，或包目录被移动）；
 - 安装后侧边栏底部几秒内没有出现分屏图标（少数没有 HMR 的旧版 DSH）。
+
+**0.12.0 / 0.13.0 的新面板、图标、切换暖缓存和缩放优化都在客户端 bundle 里**，重建 `lib/client.js` 后同样由 HMR 热替换，不需要重启 DSH。
 
 **0.11.1 修复：重建客户端 bundle 后不再需要重启。** 之前每次重建 `lib/client.js` 后分屏按钮、右键菜单和「设置 → 分屏工作区」都会消失，必须刷新页面或重启 DSH 才回来——原因是插件工厂重复定义只读诊断接口 `__test` 时抛出 `Cannot redefine property`，整次加载被中断（DSH 会把它记为“本页面的插件未能完成同步”）。现在每次 bundle 执行都会创建一个新的公开对象，所以**热替换重建后的 bundle、在设置 → 插件里禁用后再启用、以及从 0.11.0 热升级到 0.11.1，都在同一个页面内就地生效**，不需要刷新或重启。
 
@@ -174,6 +189,8 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 
 ## 功能
 
+- **切换零重建 + 手势暖缓存（0.13.0）**：分屏画布常驻，切换「分屏视图 / 普通会话 / 最小化 / 插件面板」不再卸载重挂原生窗格；最小化胶囊可拖到任意位置并吸附最近边缘。
+- **左侧栏「分屏视图」面板（0.12.0）**：左侧栏顶部与「插件」同级的面板入口，点击在主区打开分屏视图；已有分屏时直接显示窗格界面，没有分屏时显示添加分屏多选框，选满两个会话立即分屏。
 - **侧边栏分屏菜单**：底部分屏按钮弹出「添加分屏 / 退出分屏 / 最小化分屏 / 性能模式 / 刷新界面 / 重启 DSH / 分屏帮助 / 重置分屏」，其中退出和最小化与顶部工具栏完全一致，「分屏帮助」直接打开带截图的帮助卡片。
 - **多选添加分屏**：弹框可搜索、可多选；已分屏时默认勾选当前窗格，可取消或追加，按最终勾选结果分屏。
 - **会话右键集成**：原生右键菜单新增「分屏插件」二级菜单，其中「加入分屏 / 退出分屏」按状态显示为同一个开关；未分屏时先进入待分屏，满两个才分屏，退出到只剩一个自动退出分屏。
@@ -204,7 +221,7 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 - 没有固定窗格上限：窗口能显示多少会话就能加多少（窗格变窄时标题栏会自动紧凑）。
 - 存在分屏时，共享的原生侧边栏跟随聚焦窗格；点击会话即载入该窗格，或把会话拖到分屏区域新增/替换窗格。
 - 窗格树在刷新和重启后保留（包括手工拖出的堆叠或 L 形布局）；增删窗格会重新适配自动网格，重启不会。
-- **最小化**（工具栏）会隐藏分屏、显示原生单会话视图，同时保留窗格树；「恢复分屏」按钮可以恢复。点击**新建会话**或插件/技能/设置面板会自动最小化分屏（新视图不会被遮挡）；恢复后回到聚焦窗格的会话。
+- **最小化**（工具栏或底部菜单）会隐藏分屏、显示原生单会话视图，同时保留窗格树；「恢复分屏」胶囊可以恢复（可拖到任意位置、吸附最近边缘，位置会记住）。点击其他会话会把分屏收成胶囊；打开插件/技能/设置面板时画布只是暂时隐藏（窗格保持挂载），回到会话或「分屏视图」后自动恢复，不再需要点恢复胶囊。
 - 每个窗格只有一个标题：标题由窗格标题栏负责；原生标题栏保留视图页和操作，不重复面包屑。关闭按钮是红底描边的 **✕**，不是低对比度圆点。
 - 如果安装了 `dsh-prompt-history`，它的可拖动 **会话目录 (☰)** 握把会在每个活动窗格的左边缘垂直居中显示一次。每次分屏调整（新增、关闭、重排、拖动分隔条、最大化或右侧栏推挤）都会把受影响的握把重新放回窗格左边缘与垂直中心；没有变化的窗格保留手动拖动的位置。隐藏的原生会话和非窗格视图里的副本会被隐藏，握把不再堆叠。
 - 分屏工具栏的右侧栏按钮有**两种状态**：面板关闭时是右箭头（点击打开），打开时是高亮的左箭头（点击收起）。修复监听器会在分屏拆除后接管原生的打开/收起按钮，避免过期的 sidebar-right store 吞掉点击或隐藏入口。
@@ -230,6 +247,7 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 - `window.__dshSplitWorkspace.appWindow()`：当前独立窗口状态（`{ id, minimized, maximized }` 或 `null`）。
 - `window.__dshSplitWorkspace.setPerformanceMode(true/false)`：开关性能模式（持久化）。
 - `window.__dshSplitWorkspace.performanceMode()`：当前是否处于性能模式。
+- `window.__dshSplitWorkspace.resizeFreeze()` / `setResizeFreeze(true|false)`：性能模式下窗口缩放时是否冻结画布内部布局、用 CSS 缩放跟随窗口边缘（默认开启）。
 - `window.__dshSplitWorkspace.reloadClient()`：刷新页面。
 - `window.__dshSplitWorkspace.restartApp()`：退出并重新打开 DSH 桌面版（需要完整重启时使用）。
 - `window.__dshSplitWorkspace.pending()`：当前待分屏的会话 id。
@@ -258,7 +276,7 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 | `09-pane-renderers` | 原生/降级对话与输入框渲染器 |
 | `10-pane-frame` | 窗格标题栏、关闭/浮窗按钮、composer 测量 |
 | `11-canvas-navigation` | 画布/分隔条、会话选择器、键盘导航、公共 API 前置 |
-| `12-chrome` | 安全模式/帮助/提示、性能模式提示、更新通知、座位 |
+| `12-chrome` | 安全模式/帮助/提示、「分屏视图」主面板、窗口缩放冻结、更新通知、座位 |
 | `13-drag-bridge` | 未激活时的拖入分屏桥 |
 | `14-launcher` | 底部菜单、多选添加分屏弹框、会话菜单集成 |
 | `15-float-window` | 浮窗组件与图层 |
@@ -413,6 +431,37 @@ dsh --profile web
 - Right-click any conversation (or its row `⋯` button) → **Enter floating window** to detach it into a movable window. Drag its title bar to move it, drag any edge to resize, use **⇲ Dock to split** to put it back into a split, or **✕** to close the float. A conversation is never hosted in both modes: entering a float removes it from the split / pending split first.
 - Right-click a conversation → **Open in independent window** to open it alone in an in-app window with close / minimize / maximize-restore / fullscreen controls — no browser is opened.
 
+### Split view entry in the sidebar (0.12.0)
+
+- The sidebar's global-panel navigation now has a **Split view** row next to
+  **Plugins**, with the plugin's split glyph. The bottom-left split button and
+  the session right-click **Split plugin** group use the same glyph.
+- Clicking **Split view** switches the main column to the **Split view panel**:
+  with two or more panes it shows the same canvas you get from “Restore split”
+  (panes, dividers and the layout toolbar); with fewer panes it shows the
+  **Add split** multi-select page, and confirming two or more conversations
+  opens the split right there.
+- **Minimize split** from the footer menu now returns to the conversation
+  view, and **Exit split** clears the panes and returns as well. Switching to a
+  conversation or another plugin panel in the sidebar keeps the layout; click
+  **Split view** again to continue.
+- **Switching no longer re-creates the panes (0.13.0)**: the canvas always stays
+  mounted in the overlay layer and is only shown/hidden between the Split view
+  panel, a plain conversation, the minimized state and plugin panels. While
+  hidden it is kept mounted for **20 seconds** (warm hold), so Split view ⇄
+  conversation and minimize ⇄ restore are near-instant instead of re-attaching
+  every native conversation (session retain + editor guards) each time. After
+  the warm window the pane tree is dropped to free resources; the hidden canvas
+  also stays in layout, so showing it again is a visibility flip rather than a
+  full re-layout of N conversations.
+- **Minimize chip (0.13.0)**: the restore chip shown while the split is
+  minimized can be dragged anywhere in the workspace and snaps to the **nearest
+  edge** on release — the position along that edge is kept, so it is no longer
+  limited to the four corners. The position persists across minimize cycles.
+- The **Restart DSH** row now uses a drawn SVG instead of the U+23FB power
+  symbol (missing from the default Windows CJK font stack, where it rendered as
+  a mojibake box). Every new icon is inline SVG, so no system font is involved.
+
 ### Usage help (screenshots)
 
 The in-app **Split help** card now carries three annotated screenshots — the
@@ -492,7 +541,7 @@ Besides the sidebar-footer split button, the plugin registers a **Settings → S
 
 - **Status**: plugin version, pane count, pending split, floating windows, and the current independent window.
 - **Performance mode**: the persisted switch (on by default) for animations, background observers and the drag preview.
-- **Actions**: add split, exit split, minimize split, reset split, refresh interface, restart DSH (Desktop), help.
+- **Actions**: open split view, add split, exit split, minimize split, reset split, refresh interface, restart DSH (Desktop), help.
 
 “Add split” closes the Settings panel before opening the multi-select dialog so the dialog is never hidden behind it; the other actions run in place and refresh the status live.
 
@@ -520,6 +569,28 @@ turns off:
 Real conversations, composers, approval flows, split/float/system-window
 features all stay available.
 
+- **0.12.0: window resizing no longer measures every frame.** While dragging
+  the window edge, each pane's size observer used to commit a new pane box on
+  every frame (re-rendering the pane and re-running the composer measurement and
+  dock alignment); more panes meant more jank. Now the browser's own CSS reflow
+  runs alone during the gesture, and all JS measurement and derived state (slim
+  header / short-pane decision, composer-card geometry, dock row width, float
+  clamping) runs once when the resize or divider drag settles. Pane transitions
+  are also cut while resizing, so a 180 ms width transition cannot chase the live
+  window edge. In performance mode, the canvas additionally keeps its gesture-start inner
+  layout during a window resize and follows the live window edge through a CSS
+  transform, so the stock conversation views inside the panes do not re-measure
+  their scrollers on every frame; at settle it relayouts once at the real size
+  (text is slightly scaled during the drag and crisps up immediately after).
+  Performance mode benefits too.
+
+Measured on a dev machine (headless Chromium, performance mode, 2 panes, one
+continuous 40-step window drag): freeze ON vs OFF — median main-thread task time
+across the gesture **2.1 s vs 3.2 s**, long tasks **1 vs 17**, total blocking time
+**9 ms vs 461 ms**, average frame interval **25.7 ms vs 59.1 ms**; with 4 panes,
+long tasks **6 vs 38** and blocking **85 ms vs 989 ms**. The panel entry has less
+left to do because no covered stock conversation stays mounted.
+
 **What can still lag**: every pane is a full native conversation view, so N panes
 streaming at once means N independent React/DOM render and scroll pipelines —
 the dominant upstream cost, which a renderer plugin cannot remove (that would
@@ -539,6 +610,8 @@ installs/updates therefore need **no restart**. A restart is only needed when:
   host modules changed, or the package directory moved);
 - the footer split icon still has not appeared a few seconds after install (some
   older DSH builds without HMR).
+
+**The 0.12.0 / 0.13.0 panel, icons, warm-switch and resize work all live in the client bundle**, so a rebuilt `lib/client.js` is hot-swapped by HMR as well — no DSH restart.
 
 **Fixed in 0.11.1: rebuilding the client bundle no longer needs a restart.** A
 rebuild of `lib/client.js` used to make the footer button, the session menus and
@@ -575,6 +648,8 @@ Since dsh-split-workspace 0.9.0:
 
 ### Features
 
+- **No-rebuild switching + warm hold (0.13.0)** — the split canvas stays mounted, so Split view / plain conversation / minimized / plugin panels no longer tear down and re-create the native panes; the minimize chip drags anywhere and snaps to the nearest edge.
+- **Split view sidebar entry (0.12.0)** — a global-panel row next to **Plugins** opens the split workspace in the main column: the pane canvas when a split exists, or the add-split multi-select page that opens the split as soon as two conversations are confirmed.
 - **Sidebar split menu** — the footer button opens Add / Exit / Minimize / Reset; Exit and Minimize are the same actions as the split toolbar.
 - **Multi-select add** — searchable dialog; pre-selects current panes, lets you uncheck or extend, and rebuilds the split from the final selection.
 - **Session-menu integration** — the stock right-click menu gains Add to split / Leave split. Outside split mode the first pick waits in a pending split until a second conversation is added; removing down to one pane exits the split.
@@ -628,11 +703,13 @@ Since dsh-split-workspace 0.9.0:
 - The pane tree persists across reloads and reopens with the layout you left
   (including a hand-made stacked or L-shaped arrangement). Adding or closing a
   pane re-fits the automatic grid; restarting does not.
-- **Minimize** (toolbar) hides the split and shows the stock single-session
-  view while keeping the pane tree. A "restore split" chip brings it back.
-  Clicking **New Session** or a plugin/skills/settings panel minimizes the
-  split automatically (so the new view is never covered); restoring returns to
-  the focused pane's conversation.
+- **Minimize** (toolbar or footer menu) hides the split and shows the stock
+  single-session view while keeping the pane tree. A "restore split" chip brings
+  it back (drag it anywhere — it snaps to the nearest edge and remembers its
+  position). Clicking another conversation tucks the split into the chip;
+  opening a plugin/skills/settings panel only hides the canvas temporarily (the
+  panes stay mounted) and it reappears when you return to a conversation or the
+  Split view panel, so no restore chip is needed there.
 - One title per pane: the pane header owns the title; the stock header keeps its
   view tabs and actions without repeating the breadcrumb. The close control is
   a drawn **✕** in a red-tinted button, not a low-contrast dot.
@@ -687,6 +764,9 @@ architecture the upstream plugin uses.
   (`{ id, minimized, maximized }` or `null`).
 - `window.__dshSplitWorkspace.setPerformanceMode(true/false)` /
   `performanceMode()` — toggle/inspect the persisted performance mode.
+- `window.__dshSplitWorkspace.resizeFreeze()` / `setResizeFreeze(true/false)` —
+  whether performance mode freezes the canvas layout during a live window
+  resize and follows the window edge with a CSS transform (on by default).
 - `window.__dshSplitWorkspace.reloadClient()` — reload the page.
 - `window.__dshSplitWorkspace.restartApp()` — close and reopen DSH Desktop
   (for the rare changes that need a full restart).
@@ -723,7 +803,7 @@ architecture the upstream plugin uses.
 | `09-pane-renderers` | native/fallback transcript + composer renderers |
 | `10-pane-frame` | pane header, close/dock buttons, composer measurement |
 | `11-canvas-navigation` | canvas/dividers, pickers, keyboard navigation, early API |
-| `12-chrome` | safe mode/help/tips, performance notice, update notice, seat |
+| `12-chrome` | safe mode/help/tips, the split-view main panel, live-resize canvas freeze, update notice, seat |
 | `13-drag-bridge` | inactive drag-to-split bridge |
 | `14-launcher` | footer menu, multi-select add dialog, session menu integration |
 | `15-float-window` | floating window components/layer |

@@ -681,6 +681,162 @@ test("fallback launcher keeps the split menu reachable without the sidebar foote
   }
 });
 
+
+test("split-view sidebar panel entry, main panel and inline picker", () => {
+  const client = read("lib/client.js");
+  for (const token of [
+    'const SPLIT_PANEL_ID = "split-view"',
+    'name: "sidebar.panellist"',
+    "id: SPLIT_PANEL_ID",
+    'name: "main"',
+    "key: SPLIT_PANEL_ID",
+    "SplitPanelView",
+    "PanelSplitPicker",
+    "SplitNavIcon",
+    "SplitViewGlyph",
+    "splitPickableItems",
+    "dsv-panel-root",
+    "dsv-overlay dsv-warm",
+    "WARM_HIDE_MS",
+    "warmHold",
+    "panelWarm",
+    "readChipPos()",
+    "writeChipPos(next)",
+    "panelPickTitle",
+    "panelNeedTwo",
+    "panelDisabledTitle",
+    "panelEnable",
+    "selectSplitPanel",
+    "leaveSplitPanel",
+    "splitPanelActive",
+  ]) {
+    assert(client.includes(token), `missing split-view panel support: ${token}`);
+  }
+  // The canvas is the ONE live pane tree and lives in the overlay seat for both
+  // the plain split and the "分屏视图" panel; selecting the panel must not
+  // re-create it (that was the panel ⇄ conversation latency).
+  assert(client.includes("h(WorkspaceBoundary, { key: \"workspace-\" + runtime.epoch }"),
+    "the overlay seat must always mount the workspace canvas");
+  assert(!client.includes("panelOwned ? null : h(WorkspaceBoundary"),
+    "the panel must not mount a second pane tree");
+  // Hidden states keep the canvas warm-mounted instead of unmounting it.
+  assert(client.includes("if (warmHold !== true || bounds.ok !== true) return null;"),
+    "hidden canvases must stay mounted during the warm window");
+  // The minimize chip snaps to the nearest edge only, never to a corner.
+  assert(client.includes("nearest === leftDist"), "the minimize chip must snap to the nearest edge");
+  assert(!client.includes("base.x + width / 2 < work.left + work.width / 2"),
+    "the minimize chip must not snap to one of the four corners");
+});
+
+test("locale dictionaries cover the split-view panel", () => {
+  const client = read("lib/client.js");
+  for (const key of [
+    "panelTitle",
+    "panelPickTitle",
+    "panelPickHint",
+    "panelPickConfirm",
+    "panelNeedTwo",
+    "panelDisabledTitle",
+    "panelDisabledBody",
+    "panelEnable",
+    "panelSafeTitle",
+    "panelSafeBody",
+    "panelNoSessions",
+    "panelMinimizeHint",
+  ]) {
+    const count = client.split(key + ":").length - 1;
+    assert(count >= 2, `locale key ${key} must exist in both dictionaries`);
+  }
+});
+
+test("launcher icons are drawn, so Windows never shows a mojibake box", () => {
+  const client = read("lib/client.js");
+  assert(!client.includes('row("restart", "⏻"'), "the restart row must not use the U+23FB power symbol");
+  for (const token of [
+    "RestartIcon",
+    'row("restart", h(RestartIcon',
+    "TwoPaneGlyph",
+    "FloatPaneGlyph",
+    "WindowGlyph",
+    "NativeWindowGlyph",
+  ]) {
+    assert(client.includes(token), `missing drawn launcher glyph: ${token}`);
+  }
+  // The bottom-left launcher button uses the same glyph as the sidebar row.
+  const footer = client.slice(client.indexOf("function FooterSplitButton()"), client.indexOf("/** True while apply()"));
+  assert(footer.includes("SplitViewGlyph"), "the footer button must use the split-view glyph");
+});
+
+test("session context menu carries icons for the split-plugin group and rows", () => {
+  const client = read("lib/client.js");
+  for (const token of [
+    "CONTEXT_ICON_PANEL",
+    "CONTEXT_ICON_SPLIT",
+    "CONTEXT_ICON_FLOAT",
+    "CONTEXT_ICON_WINDOW",
+    "CONTEXT_ICON_NATIVE",
+    'slots.inject("contextMenu.icon"',
+    "icon: { key: CONTEXT_ICON_PANEL }",
+    "icon: { key: CONTEXT_ICON_NATIVE }",
+  ]) {
+    assert(client.includes(token), `missing session-menu icon support: ${token}`);
+  }
+});
+
+test("resize responsiveness: layout-busy tracking and settle measurement", () => {
+  const client = read("lib/client.js");
+  for (const token of [
+    "LAYOUT_SETTLE_MS",
+    "layoutBusy",
+    "onLayoutSettle",
+    "notifyLayoutSettle",
+    "installWindowResizeTracker",
+    "markDividerDrag",
+    "data-dsv-resizing",
+    "windowResizing",
+    "applyCanvasFreeze",
+    "clearCanvasFreeze",
+    "willChange",
+    "setResizeFreeze",
+    "resizeFreezeOn",
+  ]) {
+    assert(client.includes(token), `missing resize-responsiveness support: ${token}`);
+  }
+  // Pane measurements skip the intermediate resize frames and run on settle.
+  assert(client.includes("if (layoutBusy()) return;"), "pane measurements must skip intermediate resize frames");
+  assert(client.includes("const offSettle = onLayoutSettle(schedule);"), "pane measurements must re-run when the gesture settles");
+  // The composer measurement effect must not be torn down and recreated on
+  // every width change of the window.
+  assert(!client.includes("}, [paneSize.w, composerMode, performanceMode]);"),
+    "composer measurement still re-mounts per width change");
+  assert(client.includes("}, [composerMode, performanceMode]);"), "composer measurement must depend only on mode + perf mode");
+});
+
+
+test("switching split ⇄ conversation ⇄ plugin panels keeps the pane tree warm", () => {
+  const client = read("lib/client.js");
+  for (const token of [
+    "const WARM_HIDE_MS = 20000",
+    "dsv-overlay dsv-warm",
+    "visibility: hidden !important",
+    "if (warmHold !== true || bounds.ok !== true) return null;",
+  ]) {
+    assert(client.includes(token), `missing warm-canvas switch support: ${token}`);
+  }
+  // One canvas: the overlay seat always mounts it; the panel page never does.
+  assert(!client.includes("panelOwned ? null : h(WorkspaceBoundary"),
+    "the split-view panel must not mount a second pane tree");
+  const restore = client.slice(client.indexOf("function restoreSplit()"), client.indexOf("function SplitNavIcon"));
+  // The canvas becomes visible before the covered stock view is aligned: a
+  // native openSession in there used to gate the restore for hundreds of ms.
+  assert(restore.length > 0, "restoreSplit is missing");
+  assert(restore.indexOf("setRuntime({ minimized: false });") !== -1
+    && restore.indexOf("setRuntime({ minimized: false });") < restore.indexOf("layout.selectPanel(null);"),
+    "restoreSplit must unminimize before switching the covered stock view");
+  assert(restore.includes("window.setTimeout(() => {"), "the covered-view session alignment must be deferred");
+  assert(restore.includes("currentSessionId() === sid"), "the deferred alignment must be skipped when already aligned");
+});
+
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length > 0) {
   for (const failure of failures) console.error(`FAILED: ${failure.name}\n${failure.error.stack}`);

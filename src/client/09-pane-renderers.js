@@ -1035,6 +1035,10 @@
         };
         const tick = () => {
           if (inLiveReflow(pane)) { settleTicks = 0; raf = 0; return; }
+          // While the window resizes / a divider drags every frame moves the
+          // pane edge; skip the forced-layout pass per frame and let the
+          // settle listener below run it once at the end of the gesture.
+          if (layoutBusy()) { settleTicks = SETTLE_TICKS; raf = 0; return; }
           apply();
           if (stableCount >= 2) { settleTicks = 0; raf = 0; return; }
           if (settleTicks > 0) { settleTicks -= 1; raf = requestAnimationFrame(tick); }
@@ -1053,8 +1057,10 @@
           mutation.observe(pane, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-composer-card", "data-dsv-composer-card"] });
         }
         const perfTimer = performanceMode ? window.setInterval(schedule, 1500) : 0;
+        const offSettle = onLayoutSettle(schedule);
         raf = requestAnimationFrame(tick);
         return () => {
+          offSettle();
           if (raf !== 0) cancelAnimationFrame(raf);
           observer.disconnect();
           if (mutation !== null) mutation.disconnect();
@@ -1084,14 +1090,18 @@
         const inner = innerRef.current;
         if (row === null || inner === null || typeof ResizeObserver !== "function") return;
         const measure = () => {
-          if (inLiveReflow(row)) return;
+          if (inLiveReflow(row) || layoutBusy()) return;
           setOverflown(row.scrollWidth > row.clientWidth + 1);
         };
         measure();
         const observer = new ResizeObserver(measure);
         observer.observe(row);
         observer.observe(inner);
-        return () => observer.disconnect();
+        const offSettle = onLayoutSettle(measure);
+        return () => {
+          offSettle();
+          observer.disconnect();
+        };
         // `entries`, not `entries.length`: the cells re-render with new text
         // (a growing tok/s or token count) without changing the cell COUNT, and
         // the overflow flag has to follow that or a longer value stays clipped

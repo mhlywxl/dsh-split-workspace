@@ -3,7 +3,7 @@
     // ---------------------------------------------------------------------
 
     const PLUGIN_ID = "dsh-split-workspace";
-    const PLUGIN_VERSION = "0.11.1";
+    const PLUGIN_VERSION = "0.13.0";
     const LOG_PREFIX = "[dsh-split-workspace]";
     const TREE_KEY = "dsh.split-workspace.tree.v1";
     const OPEN_KEY = "dsh.split-workspace.open.v2";
@@ -17,7 +17,137 @@
     const PERF_KEY = "dsh.split-workspace.performance.v1";
     const SEEN_VERSION_KEY = "dsh.split-workspace.seen-version.v1";
     const UPDATE_DISMISSED_KEY = "dsh.split-workspace.update-dismissed.v1";
+    const FREEZE_KEY = "dsh.split-workspace.resize-freeze.v1";
     const UPDATE_POLL_MS = 120000;
+    /** Quiet window after the last resize event before pane measurements run. */
+    const LAYOUT_SETTLE_MS = 130;
+    /** How long a hidden canvas stays mounted before its pane tree is dropped.
+        This is what makes panel ⇄ split and minimize ⇄ restore switches reuse
+        the live native conversations instead of re-creating them. */
+    const WARM_HIDE_MS = 20000;
+    /** The main-panel id of the "分屏视图" entry; the sidebar row selects it
+        and the layout renders the workspace canvas in the main column. */
+    const SPLIT_PANEL_ID = "split-view";
+    /** Icon keys for the session context menu's "分屏插件" group and its rows.
+        Each key is registered into the context manager's inline icon slot. */
+    const CONTEXT_ICON_PANEL = "dsh-split-workspace:panel";
+    const CONTEXT_ICON_SPLIT = "dsh-split-workspace:split";
+    const CONTEXT_ICON_FLOAT = "dsh-split-workspace:float";
+    const CONTEXT_ICON_WINDOW = "dsh-split-workspace:window";
+    const CONTEXT_ICON_NATIVE = "dsh-split-workspace:native";
+
+    // ---- layout-busy tracker (0.12.0 resize responsiveness) ----------------
+    // Window resizes and divider drags change every pane's box on every frame.
+    // Measuring, re-rendering and re-laying-out the re-hosted native UI for
+    // each of those frames is what made live window resizing janky even in
+    // performance mode. These helpers let the per-pane observers skip the
+    // intermediate frames: they record "busy" from the first event and hand
+    // out a single settle callback that runs once, after the last resize /
+    // the divider release. The browser still reflows the panes natively (CSS
+    // percentages); only the JavaScript measurement and derived state wait.
+    let windowResizeAt = 0;
+    let windowResizeTimer = 0;
+    let dividerDragging = false;
+    const layoutSettleListeners = new Set();
+    /** True while the OS window is being resized (not a divider drag). */
+    function windowResizing() {
+      return windowResizeAt !== 0 && Date.now() - windowResizeAt < LAYOUT_SETTLE_MS;
+    }
+    /** True while the window is being resized OR a divider is being dragged. */
+    function layoutBusy() {
+      return dividerDragging === true || windowResizing();
+    }
+    /** Run a callback once after the current resize gesture / divider drag settles. */
+    function onLayoutSettle(fn) {
+      layoutSettleListeners.add(fn);
+      return () => { layoutSettleListeners.delete(fn); };
+    }
+    function notifyLayoutSettle() {
+      for (const fn of [...layoutSettleListeners]) {
+        try { fn(); } catch (error) {
+          try { console.warn(LOG_PREFIX + " layout-settle listener failed:", String(error).slice(0, 120)); } catch {}
+        }
+      }
+    }
+    function markDividerDrag(value) {
+      if (dividerDragging === (value === true)) return;
+      dividerDragging = value === true;
+      if (dividerDragging !== true) notifyLayoutSettle();
+    }
+    function noteWindowResize() {
+      windowResizeAt = Date.now();
+      try { document.documentElement.setAttribute("data-dsv-resizing", ""); } catch {}
+      if (windowResizeTimer !== 0) {
+        try { window.clearTimeout(windowResizeTimer); } catch {}
+        windowResizeTimer = 0;
+      }
+      windowResizeTimer = window.setTimeout(() => {
+        windowResizeTimer = 0;
+        windowResizeAt = 0;
+        try { document.documentElement.removeAttribute("data-dsv-resizing"); } catch {}
+        notifyLayoutSettle();
+      }, LAYOUT_SETTLE_MS);
+    }
+    /** Installed with the plugin lifetime; plain listeners so a reload cannot
+        stack duplicates. */
+    function installWindowResizeTracker() {
+      window.addEventListener("resize", noteWindowResize);
+      return () => {
+        window.removeEventListener("resize", noteWindowResize);
+        if (windowResizeTimer !== 0) {
+          try { window.clearTimeout(windowResizeTimer); } catch {}
+          windowResizeTimer = 0;
+        }
+        windowResizeAt = 0;
+        dividerDragging = false;
+        try { document.documentElement.removeAttribute("data-dsv-resizing"); } catch {}
+      };
+    }
+
+    // ---- split-view main panel selection (0.12.0) -------------------------
+    /** The layout service, read lazily: ui-layout is a core shell service, but
+        the plugin must keep working (overlay mode) on a host that lacks it. */
+    function layoutService() {
+      try {
+        return pluginCtx !== null && pluginCtx !== undefined && typeof pluginCtx.get === "function"
+          ? (pluginCtx.get("layout") ?? null)
+          : null;
+      } catch { return null; }
+    }
+    /** True while the main column shows the plugin's own split-view panel. */
+    function splitPanelActive() {
+      try {
+        const layout = layoutService();
+        const info = layout !== null && layout !== undefined && layout.panelInfo !== undefined && layout.panelInfo !== null
+          ? (typeof layout.panelInfo.getSnapshot === "function" ? layout.panelInfo.getSnapshot() : null)
+          : null;
+        return info !== null && info !== undefined && info.activePanelId === SPLIT_PANEL_ID;
+      } catch { return false; }
+    }
+    /** Show the split-view panel in the main column. */
+    function selectSplitPanel() {
+      try {
+        const layout = layoutService();
+        if (layout !== null && layout !== undefined && typeof layout.selectPanel === "function") {
+          layout.selectPanel(SPLIT_PANEL_ID);
+          return true;
+        }
+      } catch {}
+      return false;
+    }
+    /** Return the main column to the stock conversation view. */
+    function leaveSplitPanel() {
+      if (!splitPanelActive()) return false;
+      try {
+        const layout = layoutService();
+        if (layout !== null && layout !== undefined && typeof layout.selectPanel === "function") {
+          layout.selectPanel(null);
+          return true;
+        }
+      } catch {}
+      return false;
+    }
+
     function readChipPos() {
       const raw = storageGet(CHIP_KEY);
       if (!raw) return null;
@@ -48,6 +178,14 @@
     }
     function writePerformanceMode(value) {
       storageSet(PERF_KEY, value === true ? "1" : "0");
+    }
+    /** Live-resize canvas freeze (see 12-chrome): ON by default; an explicit
+        "0" turns it off for users who prefer a true per-frame reflow. */
+    function readResizeFreeze() {
+      return storageGet(FREEZE_KEY) !== "0";
+    }
+    function writeResizeFreeze(value) {
+      storageSet(FREEZE_KEY, value === true ? "1" : "0");
     }
     /* There is exactly one layout policy: AUTO, derived from the pane count.
        The old per-run mode menu (columns/rows/grid) is gone: it only ever
@@ -445,6 +583,18 @@
       layoutCount: "panes",
       exitSplit: "Exit split",
       openSplit: "Split view",
+      panelTitle: "Split view",
+      panelPickTitle: "Choose conversations to split",
+      panelPickHint: "Select at least two conversations — the split view opens as soon as you confirm.",
+      panelPickConfirm: "Open split view",
+      panelNeedTwo: "Select at least two conversations to open the split view.",
+      panelDisabledTitle: "Split view is disabled",
+      panelDisabledBody: "Enable it to open the split view again. Your saved layout is kept.",
+      panelEnable: "Enable split view",
+      panelSafeTitle: "Split view is paused after a crash",
+      panelSafeBody: "Retry to reopen the saved layout; the stock conversation view is untouched meanwhile.",
+      panelNoSessions: "No conversations are available yet. Start a conversation first, then pick two to split.",
+      panelMinimizeHint: "Minimize from the footer menu returns to the conversation.",
       minimizeSplit: "Minimize",
       rightbar: "Right sidebar",
       rightbarOpen: "Open right sidebar",
@@ -600,6 +750,18 @@
       layoutCount: "窗格",
       exitSplit: "退出分屏",
       openSplit: "分屏视图",
+      panelTitle: "分屏视图",
+      panelPickTitle: "选择要分屏的会话",
+      panelPickHint: "至少选择两个会话，确定后立即显示分屏界面。",
+      panelPickConfirm: "打开分屏",
+      panelNeedTwo: "至少选择两个会话才能打开分屏视图。",
+      panelDisabledTitle: "分屏视图已禁用",
+      panelDisabledBody: "启用后可重新打开分屏视图，已保存的布局会保留。",
+      panelEnable: "启用分屏视图",
+      panelSafeTitle: "分屏在崩溃后已暂停",
+      panelSafeBody: "点“重试”可重新打开已保存的布局；期间原生会话视图不受影响。",
+      panelNoSessions: "还没有可用的会话。先开始对话，再选择两个进行分屏。",
+      panelMinimizeHint: "从底部菜单最小化会回到会话界面。",
       minimizeSplit: "最小化",
       rightbar: "右侧栏",
       rightbarOpen: "打开右侧边栏",

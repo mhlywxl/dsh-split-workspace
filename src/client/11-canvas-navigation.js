@@ -487,6 +487,13 @@
       performanceMode() {
         return safeCall("performanceMode()", () => performanceModeOn(), false);
       },
+      /** Toggle the live-resize canvas freeze (performance-mode refinement). */
+      setResizeFreeze(flag) {
+        return safeCall("setResizeFreeze()", () => setResizeFreeze(flag !== false), false);
+      },
+      resizeFreeze() {
+        return safeCall("resizeFreeze()", () => resizeFreezeOn(), true);
+      },
       /** Reload the page to pick up an updated client bundle (same as Ctrl+R). */
       reloadClient() {
         return safeCall("reloadClient()", () => { try { location.reload(); } catch {} return true; }, false);

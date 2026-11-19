@@ -4,6 +4,55 @@
 
 This file records public releases of `dsh-split-workspace`; each version ends with a one-line English summary.
 
+## [0.13.0] - 2026-11-19
+
+### Added
+
+- **最小化胶囊可放在边缘任意位置。** 最小化分屏后出现的「恢复分屏」胶囊现在可以拖到工作区任意位置，松手吸附到**最近的边缘**，沿边的位置保留拖动时的位置（不再只限四个角），并且位置会持久化，下次最小化仍在原处。
+- `health()` 新增 `panelSelected`（当前主区是否选中「分屏视图」）与 `panelWarm`（画布是否处于暖缓存隐藏状态）；`blockedReason` 在插件面板占用主区时返回 `panel`。
+
+### Changed
+
+- **切换「分屏视图」/普通会话 / 最小化 / 插件面板不再重建窗格。** 分屏画布改为单一常驻的覆盖层：选中「分屏视图」时主区页面本身是空的，画布覆盖同一列；隐藏时画布保留挂载 **20 秒**（暖缓存），期间来回切换几乎瞬时，不再重连会话、重建编辑器与对话视图。超过 20 秒才释放窗格树；隐藏期间保留布局，恢复是可见性切换而不是整棵树重排。
+- 打开插件 / 技能 / 设置面板时分屏不再自动最小化成胶囊：画布暂时隐藏（窗格保持挂载），回到会话或「分屏视图」后自动恢复。点击其他会话仍会把分屏收成胶囊。
+- **恢复分屏先显示画布**：原来会先同步切换被覆盖会话区的原生会话（`uiWorkspace.openSession`），这段原生切换可达数百毫秒，用户要等它完成才看到分屏；现在先恢复显示，再把被覆盖会话区的会话对齐延后 150ms、且当前已经是该会话时跳过。
+- 暖缓存隐藏期间画布仍参与布局（这样恢复几乎零重排），因此最小化后的流式输出仍会产生布局开销，直到 20 秒窗口结束释放窗格树——这是「恢复瞬时」与「最小化省资源」之间的取舍。
+
+### Fixed
+
+- 修复「分屏视图 ⇄ 非分屏会话」「最小化 ⇄ 恢复分屏」切换卡顿：不再在每次切换时卸载并重新挂载全部原生窗格。
+
+**English summary:** The minimized split's restore chip can now be dragged anywhere and snaps to the nearest edge (any position along that edge, persisted), instead of only the four corners. The split canvas is now a single always-mounted overlay layer: selecting the Split view panel, switching to a plain conversation, minimizing, or opening a plugin panel only shows/hides it, with a 20-second warm hold that keeps the native pane tree mounted so those switches are near-instant; after the warm window the tree is dropped. Opening a plugin panel no longer minimizes the split into the chip (the canvas hides and reappears automatically), and restoring a minimized split shows the canvas first while the covered stock view's session alignment is deferred. `health()` gains `panelSelected` / `panelWarm`.
+
+## [0.12.0] - 2026-11-19
+
+### Added
+
+- **左侧栏新增「分屏视图」面板入口（与「插件」同级，0.12.0）。** 左侧栏顶部的全局面板导航里多了一行 **分屏视图**，行首是插件的分屏图标；点击它把主区切换到分屏视图面板：
+  - 已有两个及以上窗格时，面板直接显示和「恢复分屏」相同的界面（窗格、分隔条、窗格工具栏）。
+  - 还没有分屏时，面板显示 **添加分屏** 多选框；勾选两个或更多会话并确定后，立即在同一面板里显示分屏界面。
+  - 从面板里「最小化分屏」回到会话界面，「退出分屏」清空窗格并返回会话；切到其他会话或插件面板时分屏布局保留，随时点回「分屏视图」继续。
+  - 设置页「操作」里新增 **打开分屏视图**；主面板行、底部按钮、右键菜单用的是同一枚绘制图标。
+- **会话右键「分屏插件」菜单增加图标。** 一级菜单和 **加入分屏 / 进入浮窗 / 进入独立窗口 / 进入系统窗口** 四个二级条目都带上了对应的 SVG 图标（contextMenu.icon 内联图标槽）。
+
+### Changed
+
+- 左下角分屏按钮与底部菜单的入口图标统一为侧栏「分屏视图」所用的同一枚图标。
+- 设置页的「操作」新增「打开分屏视图」，并把状态区与菜单行为保持一致。
+
+### Fixed
+
+- **修复 Windows 上「重启 DSH」菜单图标显示为乱码方框的问题。** 旧图标使用 U+23FB（POWER SYMBOL），Windows 默认 CJK 字体栈没有该字形，显示成方框/乱码。现在改为内嵌 SVG 绘制的重启（循环箭头）图标，不再依赖系统字体；新增的图标同样全部是 SVG。
+- **优化窗口缩放卡顿（性能模式下同样卡）。** 拖动窗口边缘时，每个窗格的尺寸观察器会在每一帧提交新的窗格尺寸，触发整块窗格重渲染、composer 卡片重新测量与对齐行重算，窗格越多越卡；同时窗格容器还有 180ms 的宽高过渡在“追”窗口边缘。0.12.0 引入布局忙时（窗口缩放 / 拖动分隔条）的收敛机制：
+  - 缩放/拖动期间只保留浏览器自身的 CSS 重排；窗格尺寸、composer 几何、对齐行宽、浮窗钳制等 JS 测量与派生状态统一延迟到手势结束后执行一次。
+  - composer 测量副作用不再依赖窗格宽度，不再在每次宽度变化时重建 ResizeObserver。
+  - 缩放期间关闭窗格过渡/动画（html 上的 data-dsv-resizing 标记），去掉逐帧追赶窗口边缘的过渡成本。
+  - 分隔条拖动同样按“手势结束再测量”处理，拖动更顺滑。
+  - 新增 `window.__dshSplitWorkspace.resizeFreeze()` / `setResizeFreeze(true|false)`（默认开启，持久化），可在不喜欢“拖动时文字轻微拉伸”时关闭。
+  - **性能模式下，窗口缩放期间冻结画布内部布局**：画布保持手势开始时的内部布局，用 CSS transform 跟随窗口边缘缩放到新尺寸（拖动时文字轻微拉伸），松手后一次性重排为真实尺寸——这样每个窗格里的原生对话不会每一帧重新测量滚动区域。普通模式保留逐帧重排与过渡动画。
+
+**English summary:** Adds a **Split view** entry to the sidebar's global-panel navigation (next to **Plugins**) that opens the split workspace as a main panel — the same canvas when two or more panes exist, or an inline add-split picker that opens the split as soon as two conversations are confirmed. The footer button, sidebar row and session context-menu group now share one drawn icon; every session-menu row gets an icon; the Windows mojibake on the **Restart DSH** row is fixed by replacing the U+23FB power symbol with a drawn SVG; and window resizing is much smoother because pane measurement, composer geometry, dock alignment and float clamping are deferred to the end of the resize/divider gesture instead of running on every frame (with pane transitions cut while the layout is busy).
+
 ## [0.11.1] - 2026-11-18
 
 ### Fixed

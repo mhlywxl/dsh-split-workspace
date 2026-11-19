@@ -307,6 +307,19 @@
       try { window.setTimeout(() => { try { rightbarSelfHeal(); } catch {} }, delay === undefined ? 400 : delay); } catch {}
     }
     function minimizeWorkspace() {
+      // While the split-view panel owns the main column, "minimize" means
+      // "step back to the conversation": hide the split and return the column
+      // to the stock conversation view in the same commit (the panel is
+      // leaving, so there is no overlay to fade).
+      if (splitPanelActive()) {
+        try {
+          setRuntime({ minimized: true });
+          writeMinimized(true);
+        } catch {}
+        leaveSplitPanel();
+        scheduleRightbarHeal(450);
+        return;
+      }
       const finish = () => {
         try { setRuntime({ minimized: true }); writeMinimized(true); } catch {}
         scheduleRightbarHeal(450);
@@ -326,10 +339,19 @@
           setRuntime({ minimized: false });
           writeMinimized(false);
         } catch {}
+        // Exiting from the split-view panel returns the main column to the
+        // stock conversation view instead of leaving an empty picker page.
+        leaveSplitPanel();
         // The stock view owns the rightbar again; repair a stale open/collapse
         // state the split teardown may have left behind.
         scheduleRightbarHeal(450);
       };
+      // The panel page leaves with its own router switch; fading the canvas
+      // first would only delay the return to the conversation.
+      if (splitPanelActive()) {
+        finish();
+        return;
+      }
       try {
         const overlay = document.querySelector(".dsv-overlay");
         const target = overlay !== null && overlay !== undefined

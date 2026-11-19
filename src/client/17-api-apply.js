@@ -1,26 +1,48 @@
     function restoreSplit() {
+      // Show the canvas FIRST: while the pane tree is warm-held, unminimizing is
+      // just a visibility flip. The old order ran layout.selectPanel() and a full
+      // native conversation switch (uiWorkspace.openSession) before the state
+      // update, so the user waited through that switch for a view the canvas
+      // immediately covers anyway.
+      setRuntime({ minimized: false });
+      writeMinimized(false);
       try {
-        const tree = treeStore.getSnapshot();
-        const sid = tree !== null && tree !== undefined
-          ? (tree.focus !== null && tree.focus !== undefined ? tree.focus : treeStore.leafIds()[0])
-          : undefined;
         const layout = pluginCtx !== null && pluginCtx !== undefined && typeof pluginCtx.get === "function"
           ? pluginCtx.get("layout")
           : null;
         if (layout !== null && layout !== undefined && typeof layout.selectPanel === "function") {
           layout.selectPanel(null);
         }
+        const tree = treeStore.getSnapshot();
+        const sid = tree !== null && tree !== undefined
+          ? (tree.focus !== null && tree.focus !== undefined ? tree.focus : treeStore.leafIds()[0])
+          : undefined;
         if (sid !== undefined && sid !== null) {
           const workspace = pluginCtx !== null && pluginCtx !== undefined && typeof pluginCtx.get === "function"
             ? pluginCtx.get("uiWorkspace")
             : null;
           if (workspace !== null && workspace !== undefined && typeof workspace.openSession === "function") {
-            workspace.openSession(sid);
+            // Align the covered stock view a moment later, and skip it when it
+            // already shows that conversation. It stays invisible under the
+            // canvas, so a native session switch there must never gate the
+            // restore itself.
+            window.setTimeout(() => {
+              try {
+                if (currentSessionId() === sid) return;
+                workspace.openSession(sid);
+              } catch {}
+            }, 150);
           }
         }
       } catch {}
-      setRuntime({ minimized: false });
-      writeMinimized(false);
+    }
+
+    /** The sidebar's "分屏视图" row glyph; the sidebar renders it at its own
+        icon size and tells it whether this panel is the selected one. */
+    function SplitNavIcon(props) {
+      const size = props !== null && props !== undefined && typeof props.size === "number" ? props.size : 18;
+      const active = props !== null && props !== undefined && props.active === true;
+      return h(SplitViewGlyph, { size, active });
     }
 
     /** Sidebar-footer entry point: opens the split menu (add / exit / minimize
@@ -46,7 +68,7 @@
           openLauncherMenu(event.currentTarget);
         },
       },
-        h(SplitIconV, { size: 15 }),
+        h(SplitViewGlyph, { size: 15 }),
         pending.length > 0 ? h("span", { className: "dsv-footer-badge" }, String(pending.length)) : null,
       );
     }
@@ -187,6 +209,30 @@
       // unload.
       ctx.effect(installSplitSessionMenu, "dsh-split-workspace: session menu");
 
+      // 0.12.0: drawn icons for the session context menu's "分屏插件" group and
+      // its four rows. The context menu resolves each action's icon key
+      // through its inline keyed icon slot; the rows keep their stock text and
+      // hover states, they just gain a glyph in front.
+      const contextIcons = [
+        [CONTEXT_ICON_PANEL, () => h(SplitViewGlyph, { size: 15, active: true })],
+        [CONTEXT_ICON_SPLIT, () => h(TwoPaneGlyph, { size: 15 })],
+        [CONTEXT_ICON_FLOAT, () => h(FloatPaneGlyph, { size: 15 })],
+        [CONTEXT_ICON_WINDOW, () => h(WindowGlyph, { size: 15 })],
+        [CONTEXT_ICON_NATIVE, () => h(NativeWindowGlyph, { size: 15 })],
+      ];
+      for (const entry of contextIcons) {
+        const key = entry[0];
+        const Icon = entry[1];
+        slots.inject("contextMenu.icon", () =>
+          slots.register({ name: "contextMenu.icon", key }, Icon),
+        );
+      }
+
+      // Zero-cost when idle: marks the "layout is changing" window so the
+      // per-pane observers can skip intermediate resize frames and measure
+      // once when the window stops moving (0.12.0 resize responsiveness).
+      ctx.effect(installWindowResizeTracker, "dsh-split-workspace: window resize tracker");
+
       // Right-sidebar repair: the split teardown could leave the sidebar-right
       // store open while its column was closed (the corner button then vanished
       // with no way back) or leave a stock control writing to a seat nobody
@@ -306,6 +352,28 @@
         slots.register({ name: "sidebar.footer.action", id: "split-workspace", order: 30, label: () => t("openSplit") }, () =>
           h(FooterSplitButton),
         ),
+      );
+      // 0.12.0: the "分屏视图" sidebar entry — a global panel row next to the
+      // stock "插件" row (same sidebar.panellist list) plus the main panel it
+      // selects. The row id and the main key MUST match: the row IS the panel
+      // selector, and the layout resolves the main slot by that key.
+      slots.inject("sidebar.panellist", () =>
+        slots.register({
+          name: "sidebar.panellist",
+          id: SPLIT_PANEL_ID,
+          // Directly below the stock "插件" row (order 0), above the other
+          // customizable panels, so the entry sits at the top of the nav.
+          order: 5,
+          label: () => t("panelTitle"),
+          locale: "splitView",
+        }, SplitNavIcon),
+      );
+      slots.inject("main", () =>
+        slots.register({
+          name: "main",
+          key: SPLIT_PANEL_ID,
+          locale: "splitView",
+        }, (props) => h(SplitPanelView, props)),
       );
       // A second entry point in the system Settings panel. The slot is
       // declared by the settings shell; injection waits until it exists.

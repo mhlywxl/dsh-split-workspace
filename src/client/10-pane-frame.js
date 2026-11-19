@@ -66,18 +66,57 @@
       const shortRef = React.useRef(false);
       React.useEffect(() => {
         const el = frameRef.current;
-        if (el === null || typeof ResizeObserver !== "function") return;
+        if (el === null || typeof ResizeObserver !== "function") return undefined;
+        // 0.12.0: commit the pane box at most once per resize gesture. Each
+        // commit re-renders the pane (header + re-hosted native conversation)
+        // and re-runs the composer measurement; doing that for every live
+        // window-resize frame is what made resizing feel janky even in
+        // performance mode. The box is held while the layout is busy and read
+        // once when the gesture settles.
+        let pending = null;
+        let raf = 0;
+        const apply = () => {
+          raf = 0;
+          if (pending === null) return;
+          const next = pending;
+          pending = null;
+          shortRef.current = next.h < 280 ? true : next.h > 340 ? false : shortRef.current;
+          setPaneSize((prev) => (prev.w === next.w && prev.h === next.h ? prev : { w: next.w, h: next.h }));
+        };
+        const schedule = () => {
+          if (raf !== 0) return;
+          raf = window.requestAnimationFrame(apply);
+        };
         const observer = new ResizeObserver((entries) => {
           if (inLiveReflow(el)) return;
           for (const entry of entries) {
             const w = Math.round(entry.contentRect.width);
             const h = Math.round(entry.contentRect.height);
-            shortRef.current = h < 280 ? true : h > 340 ? false : shortRef.current;
-            setPaneSize((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+            // A warm-hidden canvas (display:none) reports a zero box; keep the
+            // last real geometry so restoring it needs no header/composer churn.
+            if (w < 2 || h < 2) continue;
+            pending = { w, h };
           }
+          if (layoutBusy()) return;
+          schedule();
+        });
+        const offSettle = onLayoutSettle(() => {
+          try {
+            const rect = el.getBoundingClientRect();
+            if (rect.width <= 2 || rect.height <= 2) return;
+            pending = { w: Math.round(rect.width), h: Math.round(rect.height) };
+          } catch { return; }
+          apply();
         });
         observer.observe(el);
-        return () => observer.disconnect();
+        return () => {
+          offSettle();
+          if (raf !== 0) {
+            try { window.cancelAnimationFrame(raf); } catch {}
+            raf = 0;
+          }
+          observer.disconnect();
+        };
       }, []);
       const narrow = paneSize.w > 0 && paneSize.w < 560;
       // Below this width the six header actions no longer fit: collapse them
@@ -143,6 +182,9 @@
           // and passes are capped to ~12/s per pane so a streaming burst cannot
           // turn layout reads into per-commit work (S4).
           if (typeof document.visibilityState === "string" && document.visibilityState === "hidden") return;
+          // A live resized window changes the box on every frame; measure once
+          // when the gesture settles instead (see onLayoutSettle below).
+          if (layoutBusy()) return;
           const now = Date.now();
           if (now - lastMeasureAt < 80) return;
           lastMeasureAt = now;
@@ -262,14 +304,21 @@
         const mutation = !performanceMode && typeof MutationObserver === "function" ? new MutationObserver(schedule) : null;
         if (mutation !== null) mutation.observe(frame, { childList: true, subtree: true });
         const perfTimer = performanceMode ? window.setInterval(schedule, 1500) : 0;
+        // One measure after a window resize / divider drag settles: the effect
+        // stays mounted across width changes (no per-frame teardown), and the
+        // learned card box is refreshed from the final geometry.
+        const offSettle = onLayoutSettle(schedule);
         schedule();
         return () => {
+          offSettle();
           if (raf !== 0) cancelAnimationFrame(raf);
           observer.disconnect();
           if (mutation !== null) mutation.disconnect();
           if (perfTimer !== 0) window.clearInterval(perfTimer);
         };
-      }, [paneSize.w, composerMode, performanceMode]);
+        // No paneSize dependency: the observer + settle listener re-measure; the
+        // old dependency re-created every observer on each resize frame.
+      }, [composerMode, performanceMode]);
       // a composer is never narrower than this — narrower "boxes" are
       // transient seats, not the real input; fall back to stock geometry
       const cardBoxSane = cardBox !== null && cardBox.right - cardBox.left >= 160;
@@ -922,6 +971,10 @@
           min: Math.max(0.04, MIN_PANE_PX / Math.max(1, total)),
         };
         setActive(true);
+        // Pane boxes follow the pointer every move; mark the gesture so the
+        // per-pane observers defer their measurement/derived state to the
+        // release (the layout still tracks the pointer frame by frame).
+        markDividerDrag(true);
         try {
           event.currentTarget.setPointerCapture(event.pointerId);
         } catch {}
@@ -942,6 +995,7 @@
         if (dragRef.current === null || dragRef.current.pointerId !== event.pointerId) return;
         dragRef.current = null;
         setActive(false);
+        markDividerDrag(false);
         treeStore.persistNow();
         if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       };

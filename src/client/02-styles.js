@@ -1343,6 +1343,44 @@
     @media (prefers-reduced-motion: reduce) {
       .dsv-drop-ghost { transition: none; }
     }
+    /* ---- 0.12.0 "分屏视图" main panel -------------------------------------
+       The same pane canvas as the overlay, but hosted in the layout's main
+       column: the panel fills its host (absolute inset 0 inside a relative
+       flex root), so no conversation-column geometry is needed. The picker
+       page reuses the modal card/pick styles with a page-sized shell. ---- */
+    .dsv-panel-root {
+      position: relative; flex: 1; min-width: 0; min-height: 0;
+      display: flex; flex-direction: column;
+      background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary);
+      font-family: var(--dsw-font-family, system-ui, sans-serif);
+    }
+    /* Warm-held canvas: mounted and still laid out, but invisible. Keeping the
+       box in layout is deliberate: showing it again is then a visibility flip
+       (no full re-layout of N conversation trees), which is what makes minimize
+       ⇄ restore and panel ⇄ conversation switches feel instant inside the warm
+       window. It also means a warm split keeps doing layout work for streaming
+       output until the window expires, and then its tree is dropped. */
+    .dsv-overlay.dsv-warm { visibility: hidden !important; pointer-events: none !important; }
+    .dsv-panel-picker { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 24px; }
+    .dsv-panel-card { width: min(620px, 100%); max-height: min(640px, 100%); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.16); }
+    .dsv-panel-card-narrow { width: min(460px, 100%); }
+    .dsv-panel-glyph { flex: none; display: grid; place-items: center; width: 22px; height: 22px; color: var(--dsw-static-deepseek-500); }
+    /* While the OS window is being resized, cut every pane transition: the
+       shells' percentage widths already follow the live window edge, and a
+       180ms width/height transition would chase each resize frame (visible
+       rubber-banding + extra layout per frame). The CSS reflow is the only
+       work left; JS measurement waits for the settle. */
+    html[data-dsv-resizing] .dsv-pane,
+    html[data-dsv-resizing] .dsv-pane-wrap,
+    html[data-dsv-resizing] .dsv-split-wrap,
+    html[data-dsv-resizing] .dsv-split,
+    html[data-dsv-resizing] .dsv-canvas,
+    html[data-dsv-resizing] .dsv-overlay,
+    html[data-dsv-resizing] .dsv-panel-root {
+      transition: none !important;
+      animation: none !important;
+    }
+
     /* ---- performance mode -------------------------------------------------
        One HTML attribute turns off every non-essential paint/animation cost:
        no card shadows, no focus glow, no fade/zoom transitions, no render-loop

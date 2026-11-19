@@ -44,6 +44,9 @@
       React.useEffect(() => {
         if (count === 0) return undefined;
         const clampAll = () => {
+          // Window resizes clamp once at settle (the settle listener below);
+          // this path used to re-measure the column on every resize frame.
+          if (layoutBusy()) return;
           const work = chipWorkRect();
           for (const win of floatStore.getSnapshot().windows) {
             const next = clampFloatRect(win, work);
@@ -54,6 +57,7 @@
         };
         clampAll();
         window.addEventListener("resize", clampAll);
+        const offSettle = onLayoutSettle(clampAll);
         // The column can change without a window resize (right-sidebar open/
         // close, shell layout transitions), so re-clamp on a low-frequency
         // backstop while floats exist. setRect is a no-op when nothing moved.
@@ -61,6 +65,7 @@
         const timer = performanceModeOn() ? 0 : window.setInterval(clampAll, 1000);
         return () => {
           window.removeEventListener("resize", clampAll);
+          offSettle();
           if (timer !== 0) {
             try { window.clearInterval(timer); } catch {}
           }

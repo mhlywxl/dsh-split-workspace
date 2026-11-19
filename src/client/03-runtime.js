@@ -33,6 +33,29 @@
         h("rect", { x: 2.5, y: 9.1, width: 11, height: 5.4, rx: 2, stroke: "currentColor", strokeWidth: 1.4, fill: "none" }),
       );
     }
+    /** The split-view identity glyph: two panes with the right one filled.
+        One drawing is reused by the sidebar's "分屏视图" panel row, the
+        bottom-left launcher button, the page itself and the session context
+        menu, so the entry reads as the same thing everywhere. Drawn, not a
+        font character: emoji/symbol codepoints are platform-font dependent
+        (the old "⏻" restart row rendered as a tofu box on Windows). */
+    function SplitViewGlyph({ size, active }) {
+      const s = size || 16;
+      return h(
+        "svg",
+        {
+          viewBox: "0 0 16 16", width: s, height: s, fill: "none",
+          stroke: "currentColor", strokeWidth: 1.4, "aria-hidden": true,
+        },
+        h("rect", { x: 1.8, y: 2, width: 12.4, height: 12, rx: 3 }),
+        h("path", { d: "M8.4 2.6v10.8", strokeLinecap: "round" }),
+        h("rect", {
+          x: 9.7, y: 3.3, width: 3.4, height: 9.4, rx: 1.3,
+          fill: "currentColor", stroke: "none", opacity: active === true ? 0.9 : 0.42,
+        }),
+      );
+    }
+
     /* Close is a plain drawn X. The stock close glyph is not guaranteed to
        exist in every primitives build — a missing primitive falls back to a
        single bullet, which is exactly the "small red dot" the close control
@@ -48,6 +71,64 @@
         },
         h("path", { d: "M4.4 4.4 11.6 11.6" }),
         h("path", { d: "M11.6 4.4 4.4 11.6" }),
+      );
+    }
+
+    /** Restart glyph: a circular arrow drawn as SVG. The launcher menu used to
+        render the U+23FB POWER SYMBOL, which is missing from the default
+        Windows CJK font stack and showed as a mojibake/□ box there. */
+    function RestartIcon({ size }) {
+      const s = size || 14;
+      return h(
+        "svg",
+        {
+          viewBox: "0 0 16 16", width: s, height: s, fill: "none",
+          stroke: "currentColor", strokeWidth: 1.5,
+          strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true,
+        },
+        h("path", { d: "M13 8.2A5 5 0 1 1 11.5 3.8" }),
+        h("path", { d: "M13.2 2.2v3.6H9.6" }),
+      );
+    }
+
+    /** Session-context-menu glyphs, all drawn in the same 16px frame and in
+        currentColor so the stock menu's hover/muted colors flow through. */
+    function TwoPaneGlyph({ size }) {
+      const s = size || 14;
+      return h(
+        "svg",
+        { viewBox: "0 0 16 16", width: s, height: s, fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
+        h("rect", { x: 2, y: 2.4, width: 5.2, height: 11.2, rx: 1.8 }),
+        h("rect", { x: 8.8, y: 2.4, width: 5.2, height: 11.2, rx: 1.8 }),
+      );
+    }
+    function FloatPaneGlyph({ size }) {
+      const s = size || 14;
+      return h(
+        "svg",
+        { viewBox: "0 0 16 16", width: s, height: s, fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
+        h("rect", { x: 1.8, y: 2, width: 9, height: 8.4, rx: 1.8, opacity: 0.5 }),
+        h("rect", { x: 5.4, y: 5.6, width: 8.8, height: 8.4, rx: 1.8, fill: "var(--dsw-alias-bg-layer-1, transparent)" }),
+      );
+    }
+    function WindowGlyph({ size }) {
+      const s = size || 14;
+      return h(
+        "svg",
+        { viewBox: "0 0 16 16", width: s, height: s, fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
+        h("rect", { x: 1.9, y: 2.2, width: 12.2, height: 11.6, rx: 2.2 }),
+        h("path", { d: "M1.9 6h12.2", strokeLinecap: "round" }),
+        h("circle", { cx: 4.2, cy: 4.1, r: 0.65, fill: "currentColor", stroke: "none" }),
+      );
+    }
+    function NativeWindowGlyph({ size }) {
+      const s = size || 14;
+      return h(
+        "svg",
+        { viewBox: "0 0 16 16", width: s, height: s, fill: "none", stroke: "currentColor", strokeWidth: 1.3, "aria-hidden": true },
+        h("rect", { x: 1.6, y: 2.2, width: 12.8, height: 9.2, rx: 2 }),
+        h("path", { d: "M5.4 14h5.2", strokeLinecap: "round" }),
+        h("path", { d: "M8 11.4V14", strokeLinecap: "round" }),
       );
     }
 
@@ -185,6 +266,10 @@
       maximized: null,
       minimized: readMinimized(),
       performance: readPerformanceMode(),
+      resizeFreeze: readResizeFreeze(),
+      // The canvas is mounted but hidden for a short warm window while the
+      // split is minimized / another panel owns the column. Diagnostics only.
+      panelWarm: false,
       updateReady: null,
       // One conversation in an in-app independent window. DSH Desktop has no
       // plugin-facing BrowserWindow API, so this replaces the old browser
@@ -243,6 +328,16 @@
       applyPerformanceClass();
       showPaneToast(t(next ? "performanceOn" : "performanceOff"), true);
       return next;
+    }
+    /** Toggle the live-resize canvas freeze (performance-mode refinement). */
+    function setResizeFreeze(value) {
+      const next = value === true;
+      writeResizeFreeze(next);
+      setRuntime({ resizeFreeze: next });
+      return next;
+    }
+    function resizeFreezeOn() {
+      return runtimeState.resizeFreeze !== false;
     }
 
     /** True only when the workspace may take over the viewport at all. The
@@ -387,8 +482,11 @@
         enabled: runtimeState.enabled,
         safeMode: runtimeState.safeMode,
         active: runtimeState.active,
+        panelSelected: splitPanelActive(),
+        panelWarm: runtimeState.panelWarm === true,
         minimized: runtimeState.minimized === true,
         performance: runtimeState.performance === true,
+        resizeFreeze: resizeFreezeOn(),
         geometryBlocked: runtimeState.geometryBlocked === true,
         panes: (() => { try { return treeStore.leafIds().length; } catch { return 0; } })(),
         floats: (() => { try { return floatStore.ids(); } catch { return []; } })(),
@@ -469,6 +567,7 @@
       try { leaves = treeStore.leafIds().length; } catch { return "unknown"; }
       if (leaves < 2) return "no-split";
       if (runtimeState.minimized === true) return "minimized";
+      if (runtimeState.panelWarm === true) return "panel";
       if (runtimeState.active !== true || runtimeState.geometry.ok !== true) return "geometry";
       return null;
     }

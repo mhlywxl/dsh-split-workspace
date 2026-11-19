@@ -381,6 +381,7 @@
         {
           id: "split-plugin",
           label: t("menuGroup"),
+          icon: { key: CONTEXT_ICON_PANEL },
           separatorBefore: true,
           children: [
             {
@@ -388,6 +389,7 @@
               // pending pick) exits, everything else joins.
               id: "split",
               label: t(splitMember ? "exitSplit" : "menuAddToSplit"),
+              icon: { key: CONTEXT_ICON_SPLIT },
               run: () => {
                 if (splitMember) removeSessionFromSplit(id);
                 else if (floatStore.has(id)) dockFloatToSplit(id);
@@ -397,6 +399,7 @@
             {
               id: "float",
               label: t(floating ? "menuFloatClose" : "menuFloatOpen"),
+              icon: { key: CONTEXT_ICON_FLOAT },
               run: () => {
                 if (floatStore.has(id)) closeFloatWindow(id);
                 else floatSession(id);
@@ -405,6 +408,7 @@
             {
               id: "independent",
               label: t(independent ? "menuIndependentClose" : "menuIndependentOpen"),
+              icon: { key: CONTEXT_ICON_WINDOW },
               failureLabel: t("systemWindowFailed"),
               run: () => {
                 if (independent) closeAppWindowFor(id);
@@ -414,6 +418,7 @@
             {
               id: "native",
               label: t(nativeWindow ? "menuNativeClose" : "menuNativeOpen"),
+              icon: { key: CONTEXT_ICON_NATIVE },
               failureLabel: t("systemWindowFailed"),
               run: () => requestSystemWindow(id, nativeWindow ? "close" : "open"),
             },
@@ -490,6 +495,35 @@
       );
     }
 
+    /** The pickable-conversation roster shared by the modal "添加分屏" dialog
+        and the split-view panel's inline picker: real, non-blank, non-subagent
+        chat sessions plus any already-selected id that dropped out of the live
+        list (so it can still be unchecked). */
+    function splitPickableItems(sessions, selected) {
+      const items = [];
+      const seen = new Set();
+      if (sessions !== null && sessions !== undefined && Array.isArray(sessions.ids)) {
+        for (const id of sessions.ids) {
+          const summary = sessions.byId ? sessions.byId[id] : undefined;
+          if (summary === undefined || summary === null) continue;
+          if (summary.parentId !== undefined) continue;
+          if (summary.origin === "subagent" || summary.blank === true) continue;
+          if (id.indexOf("session-") !== 0) continue;
+          seen.add(id);
+          items.push({ id, summary, title: summary.displayTitle || summary.title || id });
+        }
+      }
+      for (const id of Array.isArray(selected) ? selected : []) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        items.push({ id, summary: null, title: id });
+      }
+      // Same ordering as the stock conversation list: most recently updated
+      // first, re-sorted from the live snapshot while the picker is open.
+      items.sort((a, b) => (Number(b.summary && b.summary.updatedAt) || 0) - (Number(a.summary && a.summary.updatedAt) || 0));
+      return items;
+    }
+
     /** Multi-select "添加分屏" dialog. Opened from the footer menu, so the
         current members stay selected and can be unchecked (the final selection
         rebuilds the split) or extended with more conversations. */
@@ -511,29 +545,9 @@
       }, []);
 
       const pendingIds = pendingSplitStore.ids();
-      const items = [];
-      const seen = new Set();
-      if (sessions !== null && sessions !== undefined && Array.isArray(sessions.ids)) {
-        for (const id of sessions.ids) {
-          const summary = sessions.byId ? sessions.byId[id] : undefined;
-          if (summary === undefined || summary === null) continue;
-          if (summary.parentId !== undefined) continue;
-          if (summary.origin === "subagent" || summary.blank === true) continue;
-          if (id.indexOf("session-") !== 0) continue;
-          seen.add(id);
-          items.push({ id, summary, title: summary.displayTitle || summary.title || id });
-        }
-      }
-      // A pane session the list no longer carries (archived/hidden) must stay
-      // visible, otherwise it could never be unchecked.
-      for (const id of selected) {
-        if (seen.has(id)) continue;
-        seen.add(id);
-        items.push({ id, summary: null, title: id });
-      }
       const needle = query.trim().toLowerCase();
-      const visible = items.filter((item) => needle === "" || item.title.toLowerCase().includes(needle));
-      visible.sort((a, b) => (Number(b.summary && b.summary.updatedAt) || 0) - (Number(a.summary && a.summary.updatedAt) || 0));
+      const visible = splitPickableItems(sessions, selected)
+        .filter((item) => needle === "" || item.title.toLowerCase().includes(needle));
 
       const toggle = (id) => setSelected((previous) => (previous.indexOf(id) === -1
         ? previous.concat([id])
@@ -638,6 +652,110 @@
       );
     }
 
+    /** The split-view panel's own page while it cannot show the canvas yet.
+        Three states share one card shell: the kill switch is off (offer Enable),
+        the crash guard paused the split (offer Retry), or fewer than two
+        conversations are staged (the multi-select picker). Confirming the
+        picker with two or more conversations builds the split immediately, so
+        the panel turns into the canvas without leaving the page. */
+    function PanelSplitPicker() {
+      const runtime = useRuntime();
+      const sessions = useSessionsList();
+      const tree = useTree();
+      const treeLeaves = tree === null || tree === undefined || tree.root === null ? [] : leafOf(tree.root, []);
+      const initial = treeLeaves.length > 0 ? treeLeaves.slice() : pendingSplitStore.ids().slice();
+      const [selected, setSelected] = React.useState(initial);
+      const [query, setQuery] = React.useState("");
+      const pendingIds = pendingSplitStore.ids();
+      const items = splitPickableItems(sessions, selected);
+      React.useEffect(() => {
+        try {
+          if (sessionsListSource !== undefined && sessionsListSource !== null
+              && typeof sessionsListSource.refresh === "function") sessionsListSource.refresh();
+        } catch {}
+      }, []);
+      const card = (titleText, bodyText, action, options) => h("div", { className: "dsv-panel-picker", "data-plugin": PLUGIN_ID },
+        h("div", { className: "dsv-modal dsv-panel-card dsv-panel-card-narrow" },
+          h("div", { className: "dsv-modal-head" },
+            h("span", { className: "dsv-panel-glyph", "aria-hidden": "true" }, h(SplitViewGlyph, { size: 18 })),
+            h("span", { className: "dsv-modal-title" }, titleText),
+          ),
+          bodyText !== null && bodyText !== undefined ? h("div", { className: "dsv-modal-hint" }, bodyText) : null,
+          action !== null && action !== undefined
+            ? h("div", { className: "dsv-modal-foot" },
+                h("span", { className: "dsv-modal-count" }, options !== undefined && options.note !== undefined ? options.note : ""),
+                h("button", { type: "button", className: "dsv-modal-btn accent", onClick: action.run }, action.label),
+              )
+            : null,
+        ),
+      );
+      if (runtime.enabled !== true) {
+        return card(t("panelDisabledTitle"), t("panelDisabledBody"), {
+          label: t("panelEnable"),
+          run: () => { try { setEnabled(true); } catch {} },
+        });
+      }
+      if (runtime.safeMode === true) {
+        return card(t("panelSafeTitle"), t("panelSafeBody"), {
+          label: t("retryLabel"),
+          run: () => { try { retryWorkspace(); } catch {} },
+        });
+      }
+      const needle = query.trim().toLowerCase();
+      const visible = items.filter((item) => needle === "" || item.title.toLowerCase().includes(needle));
+      const toggle = (id) => setSelected((previous) => (previous.indexOf(id) === -1
+        ? previous.concat([id])
+        : previous.filter((value) => value !== id)));
+      const confirm = () => {
+        if (selected.length < 2) {
+          showPaneToast(t("panelNeedTwo"), true);
+          return;
+        }
+        if (!buildSplitFromSessions(selected)) showPaneToast(t("panelNeedTwo"), true);
+      };
+      return h("div", { className: "dsv-panel-picker", "data-plugin": PLUGIN_ID },
+        h("div", { className: "dsv-modal dsv-panel-card" },
+          h("div", { className: "dsv-modal-head" },
+            h("span", { className: "dsv-panel-glyph", "aria-hidden": "true" }, h(SplitViewGlyph, { size: 18 })),
+            h("span", { className: "dsv-modal-title" }, t("panelPickTitle")),
+          ),
+          h("div", { className: "dsv-modal-hint" }, t("panelPickHint")),
+          h("input", {
+            className: "dsv-modal-search",
+            type: "search",
+            placeholder: t("railSearch"),
+            value: query,
+            onChange: (event) => setQuery(event.target.value),
+          }),
+          h("div", { className: "dsv-modal-body" },
+            visible.length === 0 ? h("div", { className: "dsv-pick-empty" }, t("panelNoSessions")) : null,
+            visible.map((item) => h(SplitPickRow, {
+              key: item.id,
+              item: {
+                title: item.title,
+                sub: item.summary !== null && item.summary.cwd !== undefined ? basenameOf(item.summary.cwd) : "",
+                tag: treeLeaves.indexOf(item.id) !== -1
+                  ? "addSplitInSplit"
+                  : (pendingIds.indexOf(item.id) !== -1 ? "addSplitPending" : null),
+              },
+              checked: selected.indexOf(item.id) !== -1,
+              onToggle: () => toggle(item.id),
+            })),
+          ),
+          h("div", { className: "dsv-modal-foot" },
+            h("span", { className: "dsv-modal-count" },
+              selected.length < 2 ? t("panelNeedTwo") : t("addSplitSelected", { n: selected.length })),
+            h("button", {
+              type: "button",
+              className: "dsv-modal-btn accent",
+              disabled: selected.length < 2,
+              onClick: confirm,
+            }, t("panelPickConfirm")),
+          ),
+        ),
+      );
+    }
+
     function SplitLauncherMenu({ request }) {
       const runtime = useRuntime();
       const tree = useTree();
@@ -723,7 +841,10 @@
           () => { closeLauncher(); setPerformanceMode(runtime.performance !== true); }),
         row("reload", "↻", t("refreshInterface"), () => { closeLauncher(); try { location.reload(); } catch {} }),
         desktopShell()
-          ? row("restart", "⏻", t("restartApp"), () => { closeLauncher(); openRestartDialog(); })
+          // Drawn SVG, not the U+23FB power symbol: that codepoint is missing
+          // from the default CJK font stack on Windows and rendered as a
+          // mojibake box in the launcher menu.
+          ? row("restart", h(RestartIcon, { size: 15 }), t("restartApp"), () => { closeLauncher(); openRestartDialog(); })
           : null,
         row("help", "?", t("helpOpen"), () => { closeLauncher(); openHelp(); }),
         row("reset", "↺", t("menuResetSplit"), () => { closeLauncher(); resetSplitEnvironment(); }, { danger: true }),
@@ -785,6 +906,7 @@
         h("section", { className: "dsv-settings-group" },
           h("h3", { className: "dsv-settings-group-title" }, t("settingsActions")),
           h("div", { className: "dsv-settings-actions" },
+            button("panel", t("panelTitle"), () => closeThen(() => selectSplitPanel())),
             button("add", t("menuAddSplit"), () => closeThen(() => openAddSplitDialog("footer")), { accent: true }),
             button("exit", t("exitSplit"), () => { try { exitWorkspace(); } catch {} }, { disabled: !active }),
             button("minimize", t("menuMinimizeSplit"), () => { try { minimizeWorkspace(); } catch {} }, { disabled: !active || runtime.minimized === true }),
@@ -847,7 +969,7 @@
         "aria-haspopup": "menu",
         onClick: (event) => openLauncherMenu(event.currentTarget),
       },
-        h(SplitIconV, { size: 15 }),
+        h(SplitViewGlyph, { size: 15 }),
         h("span", { className: "dsv-fallback-label" }, t("fallbackLauncher")),
         pending.length > 0 ? h("span", { className: "dsv-footer-badge" }, String(pending.length)) : null,
       );
