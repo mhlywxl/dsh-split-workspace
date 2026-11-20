@@ -14,7 +14,7 @@
 | 桌面端 DSH Desktop（`dsh-app://`） | 日常使用，支持完整桌面能力，推荐 | `desktop` profile，由桌面端管理 |
 
 - 支持 DSH 0.2.0 / 0.2.1，当前针对 0.2.1-rc.2 构建。
-- 包内 `lib/client.js` 已预构建，无 Node 原生模块、无安装脚本，客户端的 macOS / Windows / Linux 行为一致；Windows 的「系统窗口」随包附带 WebView2 SDK（约 1.1 MB，BSD-3-Clause），无需本地编译。WebView2 宿主需要机器已安装 Microsoft Edge WebView2 运行时（Windows 11 自带，Windows 10 装过新版 Edge 即有）；缺失或 helper 起不来时会自动退回 Edge 应用窗口。
+- 包内 `client.js` 已预构建，无 Node 原生模块、无安装脚本，客户端的 macOS / Windows / Linux 行为一致；Windows 的「系统窗口」随包附带 WebView2 SDK（约 1.1 MB，BSD-3-Clause），无需本地编译。WebView2 宿主需要机器已安装 Microsoft Edge WebView2 运行时（Windows 11 自带，Windows 10 装过新版 Edge 即有）；缺失或 helper 起不来时会自动退回 Edge 应用窗口。
 - 插件本身运行时不联网。
 
 ### Web：在线安装
@@ -42,7 +42,7 @@ dsh plugin --profile web add /absolute/path/dsh-split-workspace
 dsh --profile web
 ```
 
-- 只有源码 ZIP 时，先解压；发布包已包含 `lib/client.js`，通常不需要再构建。仓库根目录必须能直接看到 `package.json`。
+- 只有源码 ZIP 时，先解压；发布包已包含 `client.js`，通常不需要再构建。仓库根目录必须能直接看到 `package.json`。
 - 目标机器不需要访问 npm，也不需要访问 GitHub。
 
 ### Desktop：在线安装
@@ -194,9 +194,9 @@ DSH 0.2.x（含 Desktop 0.2.2-rc.3）带 HMR：新安装的插件会被热加载
 - 插件管理器明确提示 `restart-required`（Host 半边、被链接包的宿主模块发生变化，或包目录被移动）；
 - 安装后侧边栏底部几秒内没有出现分屏图标（少数没有 HMR 的旧版 DSH）。
 
-**0.12.0 / 0.13.0 的新面板、图标、切换暖缓存和缩放优化都在客户端 bundle 里**，重建 `lib/client.js` 后同样由 HMR 热替换，不需要重启 DSH。
+**0.12.0 / 0.13.0 的新面板、图标、切换暖缓存和缩放优化都在客户端 bundle 里**，重建 `client.js` 后同样由 HMR 热替换，不需要重启 DSH。
 
-**0.11.1 修复：重建客户端 bundle 后不再需要重启。** 之前每次重建 `lib/client.js` 后分屏按钮、右键菜单和「设置 → 分屏工作区」都会消失，必须刷新页面或重启 DSH 才回来——原因是插件工厂重复定义只读诊断接口 `__test` 时抛出 `Cannot redefine property`，整次加载被中断（DSH 会把它记为“本页面的插件未能完成同步”）。现在每次 bundle 执行都会创建一个新的公开对象，所以**热替换重建后的 bundle、在设置 → 插件里禁用后再启用、以及从 0.11.0 热升级到 0.11.1，都在同一个页面内就地生效**，不需要刷新或重启。
+**0.11.1 修复：重建客户端 bundle 后不再需要重启。** 之前每次重建 `client.js` 后分屏按钮、右键菜单和「设置 → 分屏工作区」都会消失，必须刷新页面或重启 DSH 才回来——原因是插件工厂重复定义只读诊断接口 `__test` 时抛出 `Cannot redefine property`，整次加载被中断（DSH 会把它记为“本页面的插件未能完成同步”）。现在每次 bundle 执行都会创建一个新的公开对象，所以**热替换重建后的 bundle、在设置 → 插件里禁用后再启用、以及从 0.11.0 热升级到 0.11.1，都在同一个页面内就地生效**，不需要刷新或重启。
 
 DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart App and Host`）。从本插件的 0.9.0 起：
 
@@ -280,38 +280,57 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 - `window.__dshSplitWorkspace.reset()`：清除已保存布局。
 - `window.__dshSplitWorkspace.resetAll()`：连同 localStorage / sessionStorage 与临时缓存一起彻底重置（等同菜单里的「重置分屏」）。
 
-## 工程结构（源码拆分）
+## 工程结构
 
-`lib/client.js` 是**构建产物**，不要直接编辑；源码在 `src/client/`，按模块拆成 18 个有序片段，由 `scripts/build-client.mjs` 拼回单文件：
+包布局遵循 DSH bundle 约定：Host 入口 `index.js` 与客户端产物 `client.js` 都在包根，源码在 `src/`，构建脚本在 `scripts/`。
 
-| 片段 | 内容 |
+| 路径 | 内容 |
 | --- | --- |
-| `00-preamble` / `01-constants` | module-loader 入口、React/P、常量、存储、性能/版本键、独立窗口检测 |
-| `02-styles` | 全部 `dsv-*` CSS（含性能模式与浮窗样式） |
-| `03-runtime` | runtime store、健康诊断、会话列表源 |
-| `04-tree` | 分屏树 store、布局算法、持久化 |
-| `05-pending-float-store` | 待分屏状态、浮窗 store 与模式切换 |
-| `06-drag-reflow` | 窗格拖动预览/reflow、拖拽工具 |
-| `07-faces` | root standard faces、session bindings |
-| `08-pane-kit` | slot 捕获与原生组件 re-host |
-| `09-pane-renderers` | 原生/降级对话与输入框渲染器 |
-| `10-pane-frame` | 窗格标题栏、关闭/浮窗按钮、composer 测量 |
-| `11-canvas-navigation` | 画布/分隔条、会话选择器、键盘导航、公共 API 前置 |
-| `12-chrome` | 安全模式/帮助/提示、「分屏视图」主面板、窗口缩放冻结、更新通知、座位 |
-| `13-drag-bridge` | 未激活时的拖入分屏桥 |
-| `14-launcher` | 底部菜单、多选添加分屏弹框、会话菜单集成 |
-| `15-float-window` | 浮窗组件与图层 |
-| `16-standalone` | 应用内独立窗口组件、窗口层与恢复胶囊，以及系统窗口的模式切换与请求 |
-| `17-api-apply` | `window.__dshSplitWorkspace` API、`apply()` 与导出 |
-| `native/system-window.jxa` | macOS 系统窗口 Helper（AppKit `NSWindow` + `WKWebView`，由 Host 通过 `osascript` 启动） |
-| `native/system-window.ps1` | Windows 系统窗口 Helper（PowerShell + WinForms 宿主 WebView2，由 Host 通过 `powershell.exe` 启动） |
-| `native/webview2/` | 随包附带的 WebView2 SDK 二进制（BSD-3-Clause，约 1.1 MB，含 x64 / arm64 loader） |
+| `index.js` | Host 入口：导出 `apply()`，装配路由、安装退出钩子，并再导出诊断 helper |
+| `src/host/constants.js` | 路由路径、helper 位置、超时、日志与 session-id 常量 |
+| `src/host/routes.js` | 五个 Host 路由的注册与整体释放（版本 / 重启 / 帮助截图 / 系统窗口 / 诊断日志） |
+| `src/host/system-window.js` | 系统窗口：AppKit（macOS）、WinForms+WebView2（Windows）、Edge 应用窗口兜底 |
+| `src/host/http.js` | JSON 响应、同源校验、系统窗口请求体读取 |
+| `src/host/log.js` | 追加式诊断日志、日志轮转与清理、launch token 脱敏 |
+| `src/host/restart.js` | 桌面版 OS 级退出并重新启动 |
+| `src/host/platform.js` / `package-version.js` | 平台判断 / 读取磁盘上的插件版本 |
+| `client.js` | 客户端**构建产物**（顶部 GENERATED 标记，不要手改） |
+| `src/client/` | 客户端源码，按职责命名的 18 个模块，共享一个 module-loader 闭包 |
+| `cordis.patch.yml` | Loader patch（`split-workspace` 行） |
+| `locale/en.json`、`locale/zh.json` | `meta.title` / `meta.description` / `meta.detail` |
+| `docs/DETAIL.md`、`docs/DETAIL.zh.md`、`docs/preview.svg` | 插件详情页（英/中 + 单张特性图） |
+| `native/` | macOS / Windows 系统窗口 helper，以及随包的 WebView2 SDK |
 
-- `npm run build`：重新生成 `lib/client.js`；`npm test` 会先跑 `build:check`，源码/产物不一致会失败。
+客户端源码的构建顺序由 `scripts/build-client.mjs` 的 `MODULES` 清单决定；`entry.js` 必须第一、`apply.js` 必须最后，其余按依赖排列：
+
+| 模块 | 内容 |
+| --- | --- |
+| `entry.js` | module-loader 入口、React/P require |
+| `constants.js` | 常量、存储键、性能/版本键、独立窗口检测 |
+| `styles.js` | 全部 `dsv-*` CSS（含性能模式与浮窗样式） |
+| `runtime.js` | runtime store、健康诊断、会话列表源 |
+| `tree.js` | 分屏树 store、布局算法、持久化 |
+| `pending.js` | 待分屏状态、浮窗 store 与模式切换 |
+| `drag-reflow.js` | 窗格拖动预览/reflow、拖拽工具 |
+| `faces.js` | root standard faces、session bindings |
+| `pane-kit.js` | slot 捕获与原生组件 re-host |
+| `pane-renderers.js` | 原生/降级对话与输入框渲染器 |
+| `pane-frame.js` | 窗格标题栏、关闭/浮窗按钮、composer 测量 |
+| `navigation.js` | 画布/分隔条、会话选择器、键盘导航、公共 API 前置 |
+| `chrome.js` | 安全模式/帮助/提示、「分屏视图」主面板、窗口缩放冻结、更新通知、座位 |
+| `drag-bridge.js` | 未激活时的拖入分屏桥 |
+| `launcher.js` | 底部菜单、多选添加分屏弹框、会话菜单集成 |
+| `float-window.js` | 浮窗组件与图层 |
+| `standalone.js` | 应用内独立窗口、窗口层与恢复胶囊，以及系统窗口的模式切换与请求 |
+| `apply.js` | `window.__dshSplitWorkspace` API、`apply()` 与导出 |
+
+- npm 包只发布运行所需的 `index.js`、`client.js` 与 `src/host/**`（Host 在运行时相对导入）；`src/client/` 与构建脚本只存在于仓库。
+- `npm run build`：重新生成 `client.js`；`npm run dev` 监听 `src/client/`；`npm test` 会先跑 `build:check`，源码/产物不一致会失败。
+- 为什么不用打包器：DSH 客户端只加载一个 `<plugin>/client.js`，模块共享同一个 module-loader 闭包，按顺序拼接即可；发布包因此保持零运行时依赖、无构建依赖。
+- 新增或重命名客户端模块时同步修改 `MODULES`；构建脚本会拒绝清单遗漏或指向不存在的文件。
+- 客户端改动由 DSH 热替换到已打开的页面（刷新页面即可）；Host 改动需要重启 DSH 才生效。
 - `npm run check:anchor`：在真实 WKWebView 里验证系统窗口的菜单锚点回落（macOS 专用；CI 在 Ubuntu 上不跑）。
 - `npm run check:windows-window`：在真实 Windows 桌面上端到端验证系统窗口（用与 Host 相同的 `windowsHide: true` 启动随包 helper，要求 `form displayed osVisible=True` + WebView2 初始化完成 + 发起导航）。CI 的 `windows system window` job 每次 push 都会跑；离线测试看不到窗口，只有系统能证明它真的显示出来了。
-- 为什么不用打包器：DSH 客户端只加载一个 `<plugin>/client.js`，片段共享同一个 module-loader 闭包，按顺序拼接即可；这样发布包保持零依赖、无构建依赖。
-- 修改代码时改 `src/client/` 对应片段，然后 `npm run build`；`lib/client.js` 顶部有一行 GENERATED 标记。
 
 ## 快捷键
 
@@ -395,7 +414,7 @@ layout, the unlimited pane count, rename/copy/maximize and the compact toolbar.
 | DSH Desktop (`dsh-app://`) | Daily use with full desktop features (recommended) | `desktop`, managed by the app |
 
 - DSH 0.2.0 / 0.2.1 are supported; this build targets 0.2.1-rc.2.
-- The package ships a prebuilt `lib/client.js` with no Node native modules and no install scripts; the client behaves the same on macOS / Windows / Linux. The Windows system window ships the WebView2 SDK (about 1.1 MB, BSD-3-Clause) and only needs the Microsoft Edge WebView2 Runtime (built into Windows 11, present on Windows 10 with a current Edge).
+- The package ships a prebuilt `client.js` with no Node native modules and no install scripts; the client behaves the same on macOS / Windows / Linux. The Windows system window ships the WebView2 SDK (about 1.1 MB, BSD-3-Clause) and only needs the Microsoft Edge WebView2 Runtime (built into Windows 11, present on Windows 10 with a current Edge).
 - The plugin itself makes no network requests at runtime.
 
 **Web: online install**
@@ -420,7 +439,7 @@ dsh plugin --profile web add /absolute/path/dsh-split-workspace
 dsh --profile web
 ```
 
-- For a source ZIP, extract it first; the package root must contain `package.json` (release tarballs already include `lib/client.js`).
+- For a source ZIP, extract it first; the package root must contain `package.json` (release tarballs already include `client.js`).
 - The target machine needs neither npm nor GitHub access.
 
 **Desktop: online install**
@@ -726,10 +745,10 @@ installs/updates therefore need **no restart**. A restart is only needed when:
 - the footer split icon still has not appeared a few seconds after install (some
   older DSH builds without HMR).
 
-**The 0.12.0 / 0.13.0 panel, icons, warm-switch and resize work all live in the client bundle**, so a rebuilt `lib/client.js` is hot-swapped by HMR as well — no DSH restart.
+**The 0.12.0 / 0.13.0 panel, icons, warm-switch and resize work all live in the client bundle**, so a rebuilt `client.js` is hot-swapped by HMR as well — no DSH restart.
 
 **Fixed in 0.11.1: rebuilding the client bundle no longer needs a restart.** A
-rebuild of `lib/client.js` used to make the footer button, the session menus and
+rebuild of `client.js` used to make the footer button, the session menus and
 **Settings → Split workspace** disappear until the page was reloaded, because the
 plugin factory re-defined the read-only `__test` seam on the inherited
 `window.__dshSplitWorkspace` object and threw `Cannot redefine property` — DSH
@@ -910,41 +929,72 @@ architecture the upstream plugin uses.
 
 ### Source layout and build
 
-`lib/client.js` is a **generated artifact**; do not edit it. The source lives in
-`src/client/` as 18 ordered sections, assembled by `scripts/build-client.mjs`:
+The package follows the DSH bundle convention: the Host entry (`index.js`) and
+the client artifact (`client.js`) live at the package root, sources live under
+`src/`, and build scripts under `scripts/`.
 
-| Section | Responsibility |
+| Path | Responsibility |
 | --- | --- |
-| `00-preamble` / `01-constants` | module-loader entry, React/P, constants, storage, perf/version keys, standalone detection |
-| `02-styles` | all `dsv-*` CSS (including performance mode and floats) |
-| `03-runtime` | runtime store, health diagnostics, session-list source |
-| `04-tree` | split tree store, layouts, persistence |
-| `05-pending-float-store` | pending split, float store, split⇄float helpers |
-| `06-drag-reflow` | pane drag preview/reflow and drag utilities |
-| `07-faces` | root standard faces and session bindings |
-| `08-pane-kit` | slot capture and native component re-hosting |
-| `09-pane-renderers` | native/fallback transcript + composer renderers |
-| `10-pane-frame` | pane header, close/dock buttons, composer measurement |
-| `11-canvas-navigation` | canvas/dividers, pickers, keyboard navigation, early API |
-| `12-chrome` | safe mode/help/tips, the split-view main panel, live-resize canvas freeze, update notice, seat |
-| `13-drag-bridge` | inactive drag-to-split bridge |
-| `14-launcher` | footer menu, multi-select add dialog, session menu integration |
-| `15-float-window` | floating window components/layer |
-| `16-standalone` | system-window standalone page |
-| `17-api-apply` | `window.__dshSplitWorkspace` API, `apply()` and exports |
+| `index.js` | Host entry: exports `apply()`, wires the routes, installs the exit hook and re-exports the diagnostic helpers |
+| `src/host/constants.js` | Route paths, helper locations, timeouts, log and session-id constants |
+| `src/host/routes.js` | Registers and disposes the five Host routes (version / restart / help screenshots / system window / diagnostics) |
+| `src/host/system-window.js` | System window: AppKit (macOS), WinForms + WebView2 (Windows), Edge app-window fallback |
+| `src/host/http.js` | JSON responses, same-origin checks, bounded system-window request reader |
+| `src/host/log.js` | Append-only diagnostics, rotation and cleanup, launch-token redaction |
+| `src/host/restart.js` | OS-level quit and relaunch of the Desktop app |
+| `src/host/platform.js`, `package-version.js` | Platform facts; on-disk plugin version |
+| `client.js` | Client **generated artifact** (GENERATED banner; do not edit) |
+| `src/client/` | Client sources: 18 responsibility-named modules sharing one module-loader closure |
+| `cordis.patch.yml` | Loader patch (the `split-workspace` row) |
+| `locale/en.json`, `locale/zh.json` | `meta.title`, `meta.description`, `meta.detail` |
+| `docs/DETAIL.md`, `docs/DETAIL.zh.md`, `docs/preview.svg` | Plugin detail page (English/Chinese plus one feature image) |
+| `native/` | macOS / Windows system-window helpers and the vendored WebView2 SDK |
 
-- `npm run build` regenerates `lib/client.js`; `npm test` runs `build:check` first
-  and fails when the source and artifact disagree.
-- `npm run check:anchor` verifies the system window's menu anchoring fallback in a
-  real WKWebView (macOS only; CI runs on Ubuntu).
-- No bundler: the DSH client loads exactly one `<plugin>/client.js`, the sections
+`scripts/build-client.mjs` owns the load order through its `MODULES` list;
+`entry.js` must be first and `apply.js` last, and the rest follow their
+dependencies:
+
+| Module | Responsibility |
+| --- | --- |
+| `entry.js` | module-loader entry, React/P require |
+| `constants.js` | constants, storage keys, perf/version keys, standalone detection |
+| `styles.js` | all `dsv-*` CSS (including performance mode and floats) |
+| `runtime.js` | runtime store, health diagnostics, session-list source |
+| `tree.js` | split tree store, layouts, persistence |
+| `pending.js` | pending split, float store, split⇄float helpers |
+| `drag-reflow.js` | pane drag preview/reflow and drag utilities |
+| `faces.js` | root standard faces and session bindings |
+| `pane-kit.js` | slot capture and native component re-hosting |
+| `pane-renderers.js` | native/fallback transcript + composer renderers |
+| `pane-frame.js` | pane header, close/dock buttons, composer measurement |
+| `navigation.js` | canvas/dividers, pickers, keyboard navigation, early API |
+| `chrome.js` | safe mode/help/tips, the split-view main panel, live-resize canvas freeze, update notice, seat |
+| `drag-bridge.js` | inactive drag-to-split bridge |
+| `launcher.js` | footer menu, multi-select add dialog, session menu integration |
+| `float-window.js` | floating window components/layer |
+| `standalone.js` | in-app independent window, app-window layer/chip, system-window switching |
+| `apply.js` | `window.__dshSplitWorkspace` API, `apply()` and exports |
+
+- The npm package ships only the runtime files: `index.js`, `client.js` and `src/host/**` (imported by the Host at runtime); `src/client/` and the build script stay in the repository.
+- `npm run build` regenerates `client.js`; `npm run dev` watches `src/client/`;
+  `npm test` runs `build:check` first and fails when the source and artifact
+  disagree.
+- No bundler: the DSH client loads exactly one `<plugin>/client.js`, the modules
   share one module-loader closure, and ordered concatenation keeps the published
   package dependency-free.
+- Adding or renaming a client module means updating `MODULES`; the build script
+  rejects a missing or unlisted file.
+- Client changes are hot-swapped into the open page by DSH (refresh the page);
+  Host changes need a DSH restart.
+- `npm run check:anchor` verifies the system window's menu anchoring fallback in a
+  real WKWebView (macOS only; CI runs on Ubuntu).
+- `npm run check:windows-window` verifies the Windows system window end to end on
+  a real desktop (spawns the shipped helper with the same `windowsHide: true` the
+  Host uses and requires `form displayed osVisible=True`, WebView2 initialization
+  and a navigation). CI runs it on every push; offline tests cannot see a window.
 - `native/` holds the platform helpers: `system-window.jxa` (macOS AppKit),
   `system-window.ps1` (Windows PowerShell + WinForms + WebView2) and the vendored
   `webview2/` SDK binaries (BSD-3-Clause; see `THIRD-PARTY-NOTICES.md`).
-- Edit the matching `src/client/` section and run `npm run build`; the generated
-  file starts with a GENERATED marker.
 
 ### Keyboard
 

@@ -8,10 +8,10 @@
  * of development leftovers or accidentally committed credentials.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { nativeWindowSupported, restartCommand, systemWindowCommand } from "./lib/index.js";
+import { nativeWindowSupported, restartCommand, systemWindowCommand } from "./index.js";
 import {
   edgeAppWindowCommand,
   edgeExecutableCandidates,
@@ -19,7 +19,9 @@ import {
   redactNativeWindowText,
   windowsPowerShellCandidates,
   windowsPowerShellPath,
-} from "./lib/index.js";
+} from "./index.js";
+import { MODULES } from "./scripts/build-client.mjs";
+import { registerRoutes } from "./src/host/routes.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
@@ -47,6 +49,26 @@ function read(relative) {
 
 function exists(relative) {
   return existsSync(join(ROOT, relative));
+}
+
+/**
+ * The Host half is an entry plus modules under `src/host/`; checks that pin
+ * Host behavior read the combined text, the same way the running plugin loads it.
+ */
+const HOST_MODULES = [
+  "index.js",
+  "src/host/constants.js",
+  "src/host/http.js",
+  "src/host/log.js",
+  "src/host/package-version.js",
+  "src/host/platform.js",
+  "src/host/restart.js",
+  "src/host/routes.js",
+  "src/host/system-window.js",
+];
+
+function readHost() {
+  return HOST_MODULES.map(read).join("\n");
 }
 
 function statSafe(relative) {
@@ -109,8 +131,8 @@ test("dsh bundle and client manifest", () => {
 
 test("published files exist", () => {
   const required = [
-    "lib/index.js",
-    "lib/client.js",
+    "index.js",
+    "client.js",
     "cordis.patch.yml",
     "icon.svg",
     "README.md",
@@ -118,18 +140,42 @@ test("published files exist", () => {
     "LICENSE",
     "locale/en.json",
     "locale/zh.json",
+    "docs/DETAIL.md",
+    "docs/DETAIL.zh.md",
+    "docs/preview.svg",
     ...SCREENSHOTS.map((name) => `docs/screenshots/${name}`),
   ];
   for (const file of required) assert(exists(file), `missing ${file}`);
-  assert(pkg.files.includes("lib/client.js"), "files must ship lib/client.js");
+  assert(pkg.files.includes("client.js"), "files must ship client.js");
+  assert(pkg.files.includes("index.js"), "files must ship index.js");
+  assert(pkg.files.includes("docs/DETAIL.md"), "files must ship the detail document");
+  assert(pkg.files.includes("docs/preview.svg"), "files must ship the detail image");
   assert(pkg.files.includes("CHANGELOG.md"), "files must ship CHANGELOG.md");
   assert(pkg.files.includes("docs/screenshots/*.png"), "files must ship screenshots");
   assert(pkg.files.includes("docs/screenshots/*.gif"), "files must ship the drag GIF");
 });
 
+test("package layout follows the DSH bundle convention", () => {
+  // The loader reads the `./client` export and the Host reads `apply` from the
+  // package root; both artifacts live at the root, not in a build directory.
+  assert(pkg.exports?.["."] === "./index.js", "exports['.'] must point at ./index.js");
+  assert(pkg.exports?.["./client"] === "./client.js", "exports['./client'] must point at ./client.js");
+  assert(!exists("lib"), "the old lib/ build directory must be gone");
+  for (const module of HOST_MODULES) assert(exists(module), `missing Host module ${module}`);
+  // Every authoring module must be in the build manifest, so a new file cannot
+  // silently miss the bundle.
+  const sources = readdirSync(join(ROOT, "src", "client")).filter((name) => name.endsWith(".js")).sort();
+  assert(JSON.stringify(sources) === JSON.stringify([...MODULES].sort()),
+    "the client build manifest and src/client disagree");
+  const client = read("client.js");
+  assert(client.startsWith("/**\n * GENERATED FILE"), "client.js must start with the GENERATED banner");
+  assert(client.includes('window.__ModuleLoader__.load({\n  id: "dsh-split-workspace"'), "client.js must register the package id");
+  assert(client.includes("//#region src/client/apply.js"), "client.js must keep the source regions");
+});
+
 test("client bundle is syntactically valid and current", () => {
-  execFileSync(process.execPath, ["--check", join(ROOT, "lib/client.js")], { stdio: "pipe" });
-  const client = read("lib/client.js");
+  execFileSync(process.execPath, ["--check", join(ROOT, "client.js")], { stdio: "pipe" });
+  const client = read("client.js");
   assert(client.includes(`PLUGIN_VERSION = "${pkg.version}"`), "PLUGIN_VERSION must match package.json");
   assert(client.includes("buildArrangedRoot"), "automatic layout helper is missing");
   assert(client.includes("MAX_TREE_DEPTH"), "depth guard is missing");
@@ -138,7 +184,7 @@ test("client bundle is syntactically valid and current", () => {
 });
 
 test("composer-plugin compatibility and drag-performance guards", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     "installComposerAnchorBridge",
     "data-dsv-composer-card",
@@ -161,8 +207,28 @@ test("composer-plugin compatibility and drag-performance guards", () => {
 });
 
 test("host half and loader patch", () => {
-  assert(/export function apply\s*\(/.test(read("lib/index.js")), "host half must export apply()");
+  assert(/export function apply\s*\(/.test(readHost()), "host half must export apply()");
   assert(read("cordis.patch.yml").includes("name: 'dsh-split-workspace'"), "loader patch must mount the package");
+});
+
+test("host route table registers and disposes every route", () => {
+  const paths = [];
+  const disposed = [];
+  const webCtx = {
+    webServer: {
+      register(definition) {
+        paths.push(definition.path);
+        return () => disposed.push(definition.path);
+      },
+    },
+  };
+  const dispose = registerRoutes(webCtx);
+  assert(paths.length === 5, `expected 5 Host routes, got ${paths.length}`);
+  for (const path of ["/dsv/version", "/dsv/restart", "/dsv/help", "/dsv/system-window", "/dsv/system-window-log"]) {
+    assert(paths.includes(path), `missing Host route ${path}`);
+  }
+  dispose();
+  assert(disposed.length === paths.length, "dispose must release every registered route");
 });
 
 test("locale metadata is current", () => {
@@ -171,6 +237,9 @@ test("locale metadata is current", () => {
     assert(typeof data.meta?.title === "string" && data.meta.title.length > 0, `${locale} title is empty`);
     assert(typeof data.meta?.description === "string" && data.meta.description.length > 0, `${locale} description is empty`);
     assert(!/four[- ]pane|四窗格/i.test(data.meta.description), `${locale} description still says four panes`);
+    assert(typeof data.meta?.detail === "string" && data.meta.detail.endsWith(".md"),
+      `${locale} meta.detail must name a Markdown document`);
+    assert(exists(data.meta.detail), `${locale} meta.detail points at a missing file`);
   }
 });
 
@@ -201,11 +270,18 @@ test("npm tarball contains the release payload only", () => {
   });
   const report = JSON.parse(output)[0];
   const files = report.files.map((file) => file.path);
-  for (const file of ["package.json", "README.md", "LICENSE", "lib/index.js", "lib/client.js", "cordis.patch.yml"]) {
+  for (const file of ["package.json", "README.md", "LICENSE", "index.js", "client.js", "cordis.patch.yml"]) {
     assert(files.includes(file), `tarball is missing ${file}`);
+  }
+  // The Host entry imports src/host/* at runtime, so those modules must ship.
+  for (const module of HOST_MODULES.filter((name) => name !== "index.js")) {
+    assert(files.includes(module), `tarball is missing Host module ${module}`);
   }
   for (const name of SCREENSHOTS) {
     assert(files.includes(`docs/screenshots/${name}`), `tarball is missing docs/screenshots/${name}`);
+  }
+  for (const file of ["docs/DETAIL.md", "docs/DETAIL.zh.md", "docs/preview.svg"]) {
+    assert(files.includes(file), `tarball is missing ${file}`);
   }
   const forbidden = files.filter((file) =>
     file.includes(".DS_Store") || file.endsWith(".tgz") || file.startsWith("node_modules/") ||
@@ -214,7 +290,7 @@ test("npm tarball contains the release payload only", () => {
 });
 
 test("no credential-shaped strings in tracked text", () => {
-  for (const relative of ["README.md", "package.json", "cordis.patch.yml", "lib/index.js", "lib/client.js", "test.mjs"]) {
+  for (const relative of ["README.md", "package.json", "cordis.patch.yml", "index.js", "client.js", "test.mjs"]) {
     const text = read(relative);
     assert(!/npm_[A-Za-z0-9]{20,}/.test(text), `possible npm token in ${relative}`);
     assert(!/gh[pousr]_[A-Za-z0-9]{20,}/.test(text), `possible GitHub token in ${relative}`);
@@ -222,7 +298,7 @@ test("no credential-shaped strings in tracked text", () => {
 });
 
 test("split launcher, pending split and session-menu integration", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     "SplitLauncherLayer",
     "SplitLauncherMenu",
@@ -251,7 +327,7 @@ test("split launcher, pending split and session-menu integration", () => {
 });
 
 test("locale dictionaries cover the launcher", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const key of [
     "menuAddSplit",
     "menuAddToSplit",
@@ -278,7 +354,7 @@ test("README documents the launcher, pending split and reset", () => {
 });
 
 test("floating windows, split⇄float switching and persistence hooks", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     "FLOAT_KEY",
     "floatStore",
@@ -321,7 +397,7 @@ test("floating windows, split⇄float switching and persistence hooks", () => {
 });
 
 test("locale dictionaries cover floating windows", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const key of [
     "menuFloatOpen",
     "menuFloatClose",
@@ -355,7 +431,7 @@ test("README documents floating windows and the native-window limitation", () =>
 });
 
 test("performance mode, update prompt and the section split", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     "PERF_KEY",
     "performanceModeOn",
@@ -372,7 +448,7 @@ test("performance mode, update prompt and the section split", () => {
   ]) {
     assert(client.includes(token), `missing performance/update feature: ${token}`);
   }
-  const host = read("lib/index.js");
+  const host = readHost();
   assert(host.includes("/dsv/version"), "the Host half must serve the on-disk plugin version");
   assert(host.includes("packageVersion"), "the Host version route must read package.json");
   // Observers that used to run on every streaming token are gated by the mode.
@@ -388,14 +464,14 @@ test("performance mode, update prompt and the section split", () => {
     "geometry polling must slow down in performance mode");
   assert(client.includes("performanceModeOn() ? 1000 : DOM_LIST_MIN_READ_MS"),
     "sidebar scraping must slow down in performance mode");
-  for (const section of ["00-preamble.js", "02-styles.js", "04-tree.js", "09-pane-renderers.js", "17-api-apply.js"]) {
+  for (const section of ["entry.js", "styles.js", "tree.js", "pane-renderers.js", "apply.js"]) {
     assert(exists("src/client/" + section), `missing source section: ${section}`);
   }
   assert(exists("scripts/build-client.mjs"), "missing the client build script");
 });
 
 test("locale dictionaries cover performance mode and the update prompt", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const key of ["performanceMode", "performanceOn", "performanceOff", "reloadClient", "updateReady", "reloadNow", "updatedToast", "restartApp", "restartTitle", "restartBody", "restartNow", "restarting", "restartFailed", "restartUnsupported", "fallbackLauncher"]) {
     const count = client.split(key + ":").length - 1;
     assert(count >= 2, `locale key ${key} must exist in both dictionaries`);
@@ -404,13 +480,13 @@ test("locale dictionaries cover performance mode and the update prompt", () => {
 
 test("README documents performance mode, reload and the source split", () => {
   const readme = read("README.md");
-  for (const text of ["性能模式", "性能模式默认开启", "性能模式与卡顿排查", "刷新界面", "重启 DSH", "兜底", "工程结构", "源码拆分", "Performance mode", "Performance mode is ON by default", "Restart DSH", "fallback split", "Source layout", "build-client.mjs"]) {
+  for (const text of ["性能模式", "性能模式默认开启", "性能模式与卡顿排查", "刷新界面", "重启 DSH", "兜底", "工程结构", "src/host/", "src/client/", "Performance mode", "Performance mode is ON by default", "Restart DSH", "fallback split", "Source layout", "build-client.mjs"]) {
     assert(readme.includes(text), `README is missing ${text}`);
   }
 });
 
 test("a rebuilt client bundle can replace itself inside the open page", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   // DSH swaps a rebuilt client bundle into the open page: the factory runs
   // again while window.__dshSplitWorkspace still holds the previous run's
   // descriptors. The read-only __test seam is non-configurable, so re-defining
@@ -443,7 +519,7 @@ test("a rebuilt client bundle can replace itself inside the open page", () => {
     "a refused diagnostics definition must degrade to a warning");
 
 test("a failed client setup stays retryable without a reload", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   // DSH retries a failed client entry by restarting the fiber on the SAME
   // module exports, so a once-guard set before a throwing statement would turn
   // one bad setup into a plugin that never mounts again (the "restart DSH to
@@ -458,13 +534,13 @@ test("a failed client setup stays retryable without a reload", () => {
 });
 });
 
-test("lib/client.js is generated from the ordered src/client sections", () => {
+test("client.js is generated from the ordered src/client sections", () => {
   const out = execFileSync(process.execPath, [join(ROOT, "scripts", "build-client.mjs"), "--check"], { encoding: "utf8" });
   assert(out.includes("is current"), "build check did not confirm a current bundle");
 });
 
 test("closing the second-to-last pane clears the ended split state", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     "endSplitBecauseTooSmall",
     "before.length >= 2 && leafOf(next, []).length < 2",
@@ -481,7 +557,7 @@ test("closing the second-to-last pane clears the ended split state", () => {
 });
 
 test("independent window: in-app surface, no browser route", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     "menuSystemWindow",
     "openSystemWindow",
@@ -501,7 +577,7 @@ test("independent window: in-app surface, no browser route", () => {
   ]) {
     assert(client.includes(token), `missing independent-window feature: ${token}`);
   }
-  const host = read("lib/index.js");
+  const host = readHost();
   assert(!client.includes("dsvWindow"), "the browser standalone hash marker must be gone");
   // Pane-header drag is armed from the mousedown target instead of keeping the
   // whole header draggable: a draggable header swallowed the ✕ click whenever
@@ -511,7 +587,7 @@ test("independent window: in-app surface, no browser route", () => {
 });
 
 test("locale dictionaries cover the independent window and settings page", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const key of [
     "menuSystemWindow", "systemWindowOpened", "systemWindowFailed", "standaloneFullscreen",
     "menuGroup", "menuIndependentOpen", "menuIndependentClose", "menuNativeOpen", "menuNativeClose",
@@ -528,7 +604,7 @@ test("locale dictionaries cover the independent window and settings page", () =>
 });
 
 test("settings.section entry mirrors the split menu", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     "settings.section",
     "settings.section.icon",
@@ -556,7 +632,7 @@ test("README documents the independent window, settings entry and changelog", ()
 });
 
 test("native system window: Host route, macOS helper and client entry", () => {
-  const host = read("lib/index.js");
+  const host = readHost();
   for (const token of [
     "/dsv/system-window",
     "x-dsv-system-window",
@@ -592,7 +668,7 @@ test("native system window: Host route, macOS helper and client entry", () => {
   ]) {
     assert(helper.includes(token), `missing native helper support: ${token}`);
   }
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     "menuGroup", "menuIndependentOpen", "menuIndependentClose", "menuNativeOpen", "menuNativeClose",
     "requestSystemWindow", "openNativeWindow(", "closeNativeWindow", "nativeWindows(",
@@ -735,7 +811,7 @@ test("system window: launch tokens stay out of diagnostics", () => {
 });
 
 test("Windows system window: no console-less spawn, helper trace and diagnostics route", () => {
-  const host = read("lib/index.js");
+  const host = readHost();
   // Root cause of 0.14.1: `detached: true` on Windows creates the child with
   // DETACHED_PROCESS, i.e. no console; Windows PowerShell 5.1 then exits 0
   // without running the script and writes nothing to the pipes.
@@ -754,7 +830,7 @@ test("Windows system window: no console-less spawn, helper trace and diagnostics
   ]) {
     assert(host.includes(token), `missing Windows system-window support: ${token}`);
   }
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of ["systemWindowEdgeOpened", "systemWindowLog()", "/dsv/system-window-log"]) {
     assert(client.includes(token), `missing client support: ${token}`);
   }
@@ -780,7 +856,7 @@ test("Windows system window: a hidden window is a failure, not a success", () =>
   ]) {
     assert(helper.includes(token), `missing Windows window visibility support: ${token}`);
   }
-  const host = read("lib/index.js");
+  const host = readHost();
   for (const token of [
     "waitForWindowsWindow",
     "form displayed[^\\n]*osVisible=True",
@@ -807,7 +883,7 @@ test("Windows system window: a hidden window is a failure, not a success", () =>
 
 
 test("system window: anchor fallback places stock menus above their trigger", () => {
-  const source = read("src/client/16-standalone.js");
+  const source = read("src/client/standalone.js");
   const start = source.indexOf("// dsv-anchor-math:start");
   const end = source.indexOf("// dsv-anchor-math:end");
   assert(start !== -1 && end > start, "the anchor fallback math is not marked for testing");
@@ -867,7 +943,7 @@ test("macOS system window ships a WKWebView anchor fallback check", () => {
 });
 
 test("session menu groups the three window surfaces and mirrors their state", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     'id: "split-plugin"',
     "children: [",
@@ -901,7 +977,7 @@ test("session menu groups the three window surfaces and mirrors their state", ()
 });
 
 test("help card: same-origin screenshots served by the Host", () => {
-  const host = read("lib/index.js");
+  const host = readHost();
   for (const token of [
     "/dsv/help",
     "HELP_ASSETS",
@@ -912,7 +988,7 @@ test("help card: same-origin screenshots served by the Host", () => {
   ]) {
     assert(host.includes(token), `missing help asset Host support: ${token}`);
   }
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     "HELP_SHOTS",
     "/dsv/help/session-menu.png",
@@ -932,11 +1008,11 @@ test("help card: same-origin screenshots served by the Host", () => {
 });
 
 test("restart entry: Host route and Desktop OS-level quit/relaunch", () => {
-  const host = read("lib/index.js");
+  const host = readHost();
   for (const token of ["/dsv/restart", "RESTART_COOLDOWN_MS", "runningInDesktop", "restartCommand", "osascript", "Start-Process", "x-dsv-restart"]) {
     assert(host.includes(token), `missing restart Host support: ${token}`);
   }
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of ["/dsv/restart", "x-dsv-restart", "restartApplication", "openRestartDialog", "RestartDialog", "restartApp()"]) {
     assert(client.includes(token), `missing client restart entry: ${token}`);
   }
@@ -959,7 +1035,7 @@ test("restart helper builds a platform quit+relaunch command", () => {
 });
 
 test("fallback launcher keeps the split menu reachable without the sidebar footer", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of ["dsv-fallback-launcher", "LauncherFallback", "fallbackLauncher", "getBoundingClientRect().width > 0"]) {
     assert(client.includes(token), `missing fallback launcher support: ${token}`);
   }
@@ -967,7 +1043,7 @@ test("fallback launcher keeps the split menu reachable without the sidebar foote
 
 
 test("split-view sidebar panel entry, main panel and inline picker", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     'const SPLIT_PANEL_ID = "split-view"',
     'name: "sidebar.panellist"',
@@ -1013,7 +1089,7 @@ test("split-view sidebar panel entry, main panel and inline picker", () => {
 });
 
 test("locale dictionaries cover the split-view panel", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const key of [
     "panelTitle",
     "panelPickTitle",
@@ -1034,7 +1110,7 @@ test("locale dictionaries cover the split-view panel", () => {
 });
 
 test("launcher icons are drawn, so Windows never shows a mojibake box", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   assert(!client.includes('row("restart", "⏻"'), "the restart row must not use the U+23FB power symbol");
   for (const token of [
     "RestartIcon",
@@ -1052,7 +1128,7 @@ test("launcher icons are drawn, so Windows never shows a mojibake box", () => {
 });
 
 test("session context menu carries icons for the split-plugin group and rows", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     "CONTEXT_ICON_PANEL",
     "CONTEXT_ICON_SPLIT",
@@ -1068,7 +1144,7 @@ test("session context menu carries icons for the split-plugin group and rows", (
 });
 
 test("resize responsiveness: layout-busy tracking and settle measurement", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     "LAYOUT_SETTLE_MS",
     "layoutBusy",
@@ -1098,7 +1174,7 @@ test("resize responsiveness: layout-busy tracking and settle measurement", () =>
 
 
 test("switching split ⇄ conversation ⇄ plugin panels keeps the pane tree warm", () => {
-  const client = read("lib/client.js");
+  const client = read("client.js");
   for (const token of [
     "const WARM_HIDE_MS = 20000",
     "dsv-overlay dsv-warm",
@@ -1123,8 +1199,8 @@ test("switching split ⇄ conversation ⇄ plugin panels keeps the pane tree war
 
 
 test("a restored canvas is always interactive, so pane header buttons keep working", () => {
-  const client = read("lib/client.js");
-  const css = read("src/client/02-styles.js");
+  const client = read("client.js");
+  const css = read("src/client/styles.js");
   // Invariant: warm-hidden canvases are non-interactive by visibility alone.
   assert(/\.dsv-overlay\.dsv-warm\s*\{\s*visibility: hidden !important;\s*\}/.test(css),
     "the warm rule must hide the canvas with visibility:hidden only");
@@ -1153,8 +1229,8 @@ test("a restored canvas is always interactive, so pane header buttons keep worki
 
 
 test("Electron window-drag regions cannot eat pane header clicks", () => {
-  const client = read("lib/client.js");
-  const css = read("src/client/02-styles.js");
+  const client = read("client.js");
+  const css = read("src/client/styles.js");
   // The stock conversation stays mounted behind the overlay and keeps its
   // native window-drag region over the top of the column; a covered stock
   // header therefore swallows clicks before the DOM. Our pane header must

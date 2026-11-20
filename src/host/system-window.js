@@ -1,149 +1,48 @@
 /**
- * Host half of dsh-split-workspace.
+ * Native system windows: an AppKit NSWindow hosted by the system WebView on
+ * macOS (osascript), or a WinForms window hosting the WebView2 control on
+ * Windows. When the Windows helper cannot show a window, an Edge app-mode
+ * window opens the same authenticated client instead.
  *
- * DSH Desktop runs this Host in a Node child process with no Electron APIs, and
- * its main window denies `window.open` (http/https goes to the system browser).
- * No plugin-facing BrowserWindow API exists, so the Host cannot open a native
- * Electron window; the one-conversation "independent window" therefore lives in
- * the client as a first-class in-app surface.
- *
- * This half adds the actions a renderer cannot perform alone:
- * - it serves the on-disk plugin version, so a running page notices a freshly
- *   installed bundle;
- * - it closes and reopens the Desktop app, because production DSH builds have
- *   no in-app restart entry (the split menu and update chip call this);
- * - it opens a real, independent OS window: an AppKit NSWindow hosted by the
- *   system WebView on macOS (osascript), or a WinForms window hosting the
- *   WebView2 control on Windows. Both load the Host's authenticated web client
- *   with a hash marker; the renderer never receives the launch token. When the
- *   Windows helper cannot start, an Edge app-mode window (chromeless, own
- *   process) opens the same client, and the failure reasons are logged.
+ * Every helper runs with its own per-window profile/trace; the authenticated
+ * URL is handed to a same-user local process and never returned to the renderer.
  */
-
 import { spawn } from "node:child_process";
-import {
-  appendFileSync,
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import {
+  NATIVE_WINDOW_EDGE_PROFILE_PREFIX,
+  NATIVE_WINDOW_EDGE_STARTUP_MS,
+  NATIVE_WINDOW_LOG,
+  NATIVE_WINDOW_SCRIPT,
+  NATIVE_WINDOW_SCRIPT_WIN,
+  NATIVE_WINDOW_VISIBLE_MS,
+  NATIVE_WINDOW_WEBVIEW2_DIR,
+  SESSION_ID_PATTERN,
+} from "./constants.js";
+import { respond } from "./http.js";
+import {
+  helperLogPath,
+  nativeWindowLog,
+  readTextTail,
+  redactNativeWindowText,
+  sweepNativeWindowArtifacts,
+  trimNativeWindowLog,
+} from "./log.js";
+import { nativeWindowSupported } from "./platform.js";
 
-const VERSION_PATH = "/dsv/version";
-const RESTART_PATH = "/dsv/restart";
-const NATIVE_WINDOW_PATH = "/dsv/system-window";
-/** Diagnostics: serve this Host's system-window log (launch tokens redacted). */
-const NATIVE_WINDOW_LOG_PATH = "/dsv/system-window-log";
-/** Help-card screenshots shipped in docs/screenshots and served same-origin. */
-const HELP_ASSET_PATH = "/dsv/help";
-const HELP_ASSET_DIR = new URL("../docs/screenshots/", import.meta.url);
-const HELP_ASSETS = {
-  "session-menu.png": "help-session-menu.png",
-  "footer-menu.png": "help-footer-menu.png",
-  "settings.png": "help-settings.png",
-};
-/** Header a same-page action must send; blocks cross-site form posts. */
-const NATIVE_WINDOW_CONFIRM = "x-dsv-system-window";
-const NATIVE_WINDOW_SCRIPT = fileURLToPath(new URL("../native/system-window.jxa", import.meta.url));
-/** Windows counterpart: a WinForms window hosting the WebView2 control. */
-const NATIVE_WINDOW_SCRIPT_WIN = fileURLToPath(new URL("../native/system-window.ps1", import.meta.url));
-/** Vendored WebView2 SDK assets (BSD-3-Clause; see THIRD-PARTY-NOTICES.md). */
-const NATIVE_WINDOW_WEBVIEW2_DIR = fileURLToPath(new URL("../native/webview2", import.meta.url));
-/** How long a Windows helper may take to put a visible window on screen.
-    Windows PowerShell itself can need seconds to start on a cold machine, and
-    the answer the user sees must be "the window is really there", not "the
-    process has not died yet" (0.14.2 reported success for an invisible window). */
-const NATIVE_WINDOW_VISIBLE_MS = 20000;
-/** Microsoft Edge needs longer than the helper: it boots a full browser. */
-const NATIVE_WINDOW_EDGE_STARTUP_MS = 3000;
-/** The Host's append-only diagnostic log (shared by every window attempt). */
-const NATIVE_WINDOW_LOG = resolve(tmpdir(), "dsh-split-workspace-system-window.log");
-/** The Windows helper writes its own trace here; it survives a broken stderr. */
-const NATIVE_WINDOW_HELPER_LOG_PREFIX = "dsh-split-workspace-system-window-helper-";
-/** Temp WebView2 profiles and Edge app-window profiles share this prefix. */
-const NATIVE_WINDOW_PROFILE_PREFIX = "dsh-split-workspace-system-window-";
-/** Edge app-window profiles: one per window, deleted when that window closes. */
-const NATIVE_WINDOW_EDGE_PROFILE_PREFIX = "dsh-split-workspace-edge-window-";
-/** Artifacts older than this are leftovers from force-killed windows. */
-const NATIVE_WINDOW_ARTIFACT_TTL_MS = 24 * 60 * 60 * 1000;
-/** How much of the Host log the diagnostics route returns. */
-const NATIVE_WINDOW_LOG_TAIL_LIMIT = 16000;
-/** Rotate the append-only Host log once it grows past this size. */
-const NATIVE_WINDOW_LOG_MAX_BYTES = 512 * 1024;
-/** The Desktop app has no in-app restart entry in production builds; this
-    route recreates that one action at the OS level. */
-const RESTART_COOLDOWN_MS = 15000;
-/** Client and Host agree on this session-id alphabet (see src/client/04-tree.js). */
-const SESSION_ID_PATTERN = /^[A-Za-z0-9._:@+-]{1,160}$/;
-let lastRestartAt = 0;
-/** Live osascript helper processes by session id, so a Host shutdown also
-    closes the windows and the menu can offer enter/exit state. */
+/** Live helper processes by session id, so a Host shutdown closes the windows. */
 const nativeWindows = new Map();
 let nativeWindowExitHook = false;
 
-/** The plugin version currently on disk (not the one this process loaded). */
-function packageVersion() {
-  try {
-    const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-    return typeof manifest.version === "string" && manifest.version !== "" ? manifest.version : null;
-  } catch {
-    return null;
-  }
-}
-
-function respond(res, status, value) {
-  try {
-    res.writeHead(status, {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-    });
-    res.end(JSON.stringify(value));
-  } catch {}
-}
-
-/** True when this Host was spawned by the DSH Desktop shell. */
-function runningInDesktop() {
-  return typeof process.versions.electron === "string" && process.versions.electron !== "";
-}
-
-/** Allow the application origin and local web clients, never a foreign site. */
-function requestOriginAllowed(req) {
-  const origin = req.headers.origin;
-  if (typeof origin !== "string" || origin === "") return true;
-  return origin === "dsh-app://app"
-    || /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/iu.test(origin);
-}
-
-/** Append one diagnostic line; never include the tokenized URL. */
-function nativeWindowLog(level, message) {
-  try {
-    appendFileSync(NATIVE_WINDOW_LOG, `[${new Date().toISOString()}] ${level} ${message}\n`);
-  } catch {}
-}
-
-/** The Host log tail used by the diagnostics route and failure details. */
-function nativeWindowLogTail(limit = NATIVE_WINDOW_LOG_TAIL_LIMIT) {
-  return redactNativeWindowText(readTextTail(NATIVE_WINDOW_LOG, limit)).trim();
-}
-
 /** Session ids that currently have a live native window. */
-function nativeWindowSessions() {
+export function nativeWindowSessions() {
   const sessions = [];
   for (const [sessionId, child] of nativeWindows) {
     if (child.exitCode === null && child.signalCode === null) sessions.push(sessionId);
   }
   return sessions;
-}
-
-/** Platforms that can host a real, independent OS window from the plugin. */
-export function nativeWindowSupported(platform) {
-  return platform === "darwin" || platform === "win32";
 }
 
 /** The hash marker that switches the loaded client into system-window mode. */
@@ -264,22 +163,7 @@ export function edgeAppWindowCommand(platform, authenticatedUrl, sessionId, opti
   return { command: edge, args, engine: "edge" };
 }
 
-/** Last `limit` characters of a text file, or "" when it is unavailable. */
-function readTextTail(path, limit) {
-  try {
-    const text = readFileSync(path, "utf8");
-    return text.slice(Math.max(0, text.length - limit));
-  } catch {
-    return "";
-  }
-}
-
-/** A unique helper trace path, so concurrent windows keep separate traces. */
-function helperLogPath(sessionId) {
-  const safe = String(sessionId).replace(/[^A-Za-z0-9._-]/gu, "_").slice(0, 40);
-  return resolve(tmpdir(), NATIVE_WINDOW_HELPER_LOG_PREFIX + safe + "-" + Date.now().toString(36) + ".log");
-}
-
+/** Directories of windows that are still alive; their artifacts must survive. */
 /** Directories (and trace files) of windows that are still alive. */
 function liveNativeWindowArtifacts() {
   const live = new Set();
@@ -290,39 +174,6 @@ function liveNativeWindowArtifacts() {
     }
   }
   return live;
-}
-
-/** Keep the append-only Host log bounded; the tail is the useful history. */
-function trimNativeWindowLog() {
-  try {
-    if (statSync(NATIVE_WINDOW_LOG).size > NATIVE_WINDOW_LOG_MAX_BYTES) {
-      const text = readFileSync(NATIVE_WINDOW_LOG, "utf8");
-      writeFileSync(NATIVE_WINDOW_LOG, text.slice(-NATIVE_WINDOW_LOG_TAIL_LIMIT));
-    }
-  } catch {}
-}
-
-/** Delete profiles and traces left behind by force-killed windows. */
-function sweepNativeWindowArtifacts() {
-  const deadline = Date.now() - NATIVE_WINDOW_ARTIFACT_TTL_MS;
-  const live = liveNativeWindowArtifacts();
-  let entries = [];
-  try { entries = readdirSync(tmpdir()); } catch { return; }
-  for (const name of entries) {
-    // Only artifacts the Host owns. WebView2 profiles (NATIVE_WINDOW_PROFILE_PREFIX)
-    // belong to a running helper and are swept by the helper itself; deleting
-    // one here could break a window that has been open for more than a day.
-    if (!name.startsWith(NATIVE_WINDOW_EDGE_PROFILE_PREFIX)
-      && !name.startsWith(NATIVE_WINDOW_HELPER_LOG_PREFIX)) {
-      continue;
-    }
-    const path = join(tmpdir(), name);
-    // A window that has stayed open for days must keep its profile.
-    if (live.has(path)) continue;
-    try {
-      if (statSync(path).mtimeMs < deadline) rmSync(path, { recursive: true, force: true });
-    } catch {}
-  }
 }
 
 /** A per-window Edge profile directory, removed when that window closes. */
@@ -388,14 +239,6 @@ function trackNativeWindow(sessionId, child, engine, logPath) {
   });
   child.unref();
   return child;
-}
-
-
-/** Long base64/base64url runs are launch tokens: never persist them in the log.
-    DSH mints tokens with the URL-safe alphabet (`-`/`_` as well as `+`/`/`), so
-    a standard-base64-only pattern would leave ~73% of tokens partly readable. */
-export function redactNativeWindowText(text) {
-  return String(text).replace(/[A-Za-z0-9+/_-]{40,}={0,2}/gu, "<redacted>");
 }
 
 /** Resolve true when the helper dies before its window is up. Both "exit" and
@@ -485,7 +328,7 @@ function killNativeWindow(child) {
 }
 
 /** Spawn the platform helper window (macOS AppKit, Windows WinForms+WebView2). */
-function openNativeSystemWindow(webCtx, res, sessionId) {
+export function openNativeSystemWindow(webCtx, res, sessionId) {
   if (!nativeWindowSupported(process.platform)) {
     respond(res, 200, { ok: false, error: "unsupported-platform", platform: process.platform });
     return;
@@ -512,7 +355,7 @@ function openNativeSystemWindow(webCtx, res, sessionId) {
     respond(res, 503, { ok: false, error: "web-server" });
     return;
   }
-  sweepNativeWindowArtifacts();
+  sweepNativeWindowArtifacts(liveNativeWindowArtifacts());
   trimNativeWindowLog();
   const helperLog = process.platform === "win32" ? helperLogPath(sessionId) : null;
   const command = systemWindowCommand(process.platform, url, sessionId, { helperLog });
@@ -734,7 +577,7 @@ function openEdgeAppWindow(res, sessionId, authenticatedUrl, webview2Why, webvie
 }
 
 /** Close one session's native window, if it is still open. */
-function closeNativeSystemWindow(res, sessionId) {
+export function closeNativeSystemWindow(res, sessionId) {
   const child = nativeWindows.get(sessionId);
   if (child === undefined) {
     respond(res, 200, { ok: true, mode: "native", closed: false });
@@ -744,277 +587,13 @@ function closeNativeSystemWindow(res, sessionId) {
   respond(res, 200, { ok: true, mode: "native", closed: killNativeWindow(child) });
 }
 
-/** Read a bounded JSON body and hand back one validated window request. */
-function readWindowRequest(req, done) {
-  let body = "";
-  let settled = false;
-  const finish = (value) => {
-    if (settled) return;
-    settled = true;
-    done(value);
-  };
-  req.on("data", (chunk) => {
-    if (settled) return;
-    body += chunk;
-    if (body.length > 8192) {
-      finish(undefined);
-      try { req.destroy(); } catch {}
+/** Close every live helper; installed once per Host process by apply(). */
+export function installNativeWindowExitHook() {
+  if (nativeWindowExitHook) return;
+  nativeWindowExitHook = true;
+  process.once("exit", () => {
+    for (const child of nativeWindows.values()) {
+      try { killNativeWindow(child); } catch {}
     }
-  });
-  req.on("end", () => {
-    if (settled) return;
-    let sessionId;
-    let action = "open";
-    try {
-      const parsed = JSON.parse(body === "" ? "{}" : body);
-      if (parsed !== null && typeof parsed === "object") {
-        if (typeof parsed.sessionId === "string") sessionId = parsed.sessionId;
-        if (parsed.action === "close") action = "close";
-      }
-    } catch {}
-    finish(typeof sessionId === "string" && SESSION_ID_PATTERN.test(sessionId)
-      ? { sessionId, action }
-      : undefined);
-  });
-  req.on("error", () => { finish(undefined); });
-}
-
-/** POSIX single-quote escaping for one shell word. */
-function shellQuote(value) {
-  return "'" + String(value).replace(/'/g, "'\\''") + "'";
-}
-
-/**
- * The detached command that closes DSH and opens it again.
- *
- * macOS asks the application to quit through AppleScript, so DSH's own quit
- * confirmation (running tasks) still runs. Windows has no comparable public
- * quit entry, so it closes the main window and then terminates the process;
- * the renderer warns before calling this route.
- */
-export function restartCommand() {
-  const pid = process.ppid;
-  const executable = process.execPath;
-  if (process.platform === "darwin") {
-    const appBundle = resolve(executable, "../../..");
-    return {
-      command: "/bin/sh",
-      args: ["-c", [
-        "sleep 1",
-        `osascript -e 'tell application id "com.deepseek.dsh" to quit' >/dev/null 2>&1 || kill -TERM ${pid} 2>/dev/null`,
-        `n=0; while kill -0 ${pid} 2>/dev/null && [ $n -lt 120 ]; do n=$((n+1)); sleep 0.5; done`,
-        `open ${shellQuote(appBundle)} >/dev/null 2>&1`,
-      ].join("; ")],
-    };
-  }
-  if (process.platform === "win32") {
-    const script = [
-      "Start-Sleep -Milliseconds 900",
-      `$p = Get-Process -Id ${pid} -ErrorAction SilentlyContinue`,
-      "if ($p) { $p.CloseMainWindow() | Out-Null; Start-Sleep -Milliseconds 700 }",
-      `$p = Get-Process -Id ${pid} -ErrorAction SilentlyContinue`,
-      `if ($p) { Stop-Process -Id ${pid} -Force -ErrorAction SilentlyContinue }`,
-      `for ($i = 0; $i -lt 40; $i++) { if (-not (Get-Process -Id ${pid} -ErrorAction SilentlyContinue)) { break }; Start-Sleep -Milliseconds 250 }`,
-      `Start-Process -FilePath '${String(executable).replace(/'/g, "''")}'`,
-    ].join("; ");
-    return {
-      command: "powershell.exe",
-      args: ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script],
-    };
-  }
-  return {
-    command: "/bin/sh",
-    args: ["-c", [
-      "sleep 1",
-      `kill -TERM ${pid} 2>/dev/null`,
-      `n=0; while kill -0 ${pid} 2>/dev/null && [ $n -lt 120 ]; do n=$((n+1)); sleep 0.5; done`,
-      `setsid ${shellQuote(executable)} >/dev/null 2>&1 &`,
-    ].join("; ")],
-  };
-}
-
-/** Close and reopen the Desktop app without blocking the HTTP response. */
-function scheduleRestart() {
-  const now = Date.now();
-  if (now - lastRestartAt < RESTART_COOLDOWN_MS) return false;
-  lastRestartAt = now;
-  setTimeout(() => {
-    try {
-      const command = restartCommand();
-      spawn(command.command, command.args, {
-        detached: true,
-        stdio: "ignore",
-        windowsHide: true,
-      }).unref();
-    } catch (error) {
-      try { console.warn("[dsh-split-workspace] restart failed:", error); } catch {}
-    }
-  }, 250);
-  return true;
-}
-
-/** @param {import('@deepseek-ai/cordis').Context} ctx */
-export function apply(ctx) {
-  // A Host shutdown should not leave standalone OS windows behind.
-  if (!nativeWindowExitHook) {
-    nativeWindowExitHook = true;
-    process.once("exit", () => {
-      for (const child of nativeWindows.values()) {
-        try { killNativeWindow(child); } catch {}
-      }
-    });
-  }
-  ctx.inject(["webServer"], (webCtx) => {
-    webCtx.effect(() => {
-      const disposeVersion = webCtx.webServer.register({
-        kind: "exact",
-        path: VERSION_PATH,
-        handler: (req, res) => {
-          if (req.method !== "GET" && req.method !== "HEAD") {
-            respond(res, 405, { ok: false, error: "method" });
-            return;
-          }
-          const version = packageVersion();
-          if (version === null) {
-            respond(res, 503, { ok: false, error: "version" });
-            return;
-          }
-          respond(res, 200, { ok: true, version });
-        },
-      });
-      const disposeRestart = webCtx.webServer.register({
-        kind: "exact",
-        path: RESTART_PATH,
-        handler: (req, res) => {
-          if (req.method !== "POST") {
-            respond(res, 405, { ok: false, error: "method" });
-            return;
-          }
-          if (!requestOriginAllowed(req)) {
-            respond(res, 403, { ok: false, error: "origin" });
-            return;
-          }
-          if (req.headers["x-dsv-restart"] !== "1") {
-            respond(res, 403, { ok: false, error: "confirm" });
-            return;
-          }
-          if (!runningInDesktop()) {
-            respond(res, 200, { ok: false, mode: "web", error: "not-desktop" });
-            return;
-          }
-          const scheduled = scheduleRestart();
-          respond(res, 200, { ok: true, mode: "desktop", platform: process.platform, pending: scheduled !== true });
-        },
-      });
-      const disposeHelpAssets = webCtx.webServer.register({
-        kind: "prefix",
-        path: HELP_ASSET_PATH,
-        handler: (req, res) => {
-          if (req.method !== "GET" && req.method !== "HEAD") {
-            respond(res, 405, { ok: false, error: "method" });
-            return;
-          }
-          let name = "";
-          try {
-            name = decodeURIComponent(new URL(req.url, "http://dsh.invalid").pathname.slice(HELP_ASSET_PATH.length)).replace(/^\/+/, "");
-          } catch {}
-          if (!Object.prototype.hasOwnProperty.call(HELP_ASSETS, name)) {
-            respond(res, 404, { ok: false, error: "asset" });
-            return;
-          }
-          try {
-            const data = readFileSync(new URL(HELP_ASSETS[name], HELP_ASSET_DIR));
-            res.writeHead(200, {
-              "content-type": "image/png",
-              "content-length": data.length,
-              "cache-control": "public, max-age=3600",
-            });
-            res.end(req.method === "HEAD" ? undefined : data);
-          } catch (error) {
-            nativeWindowLog("warn", "help asset missing: " + HELP_ASSETS[name]);
-            respond(res, 404, { ok: false, error: "asset" });
-          }
-        },
-      });
-      const disposeNativeWindow = webCtx.webServer.register({
-        kind: "exact",
-        path: NATIVE_WINDOW_PATH,
-        handler: (req, res) => {
-          if (req.method !== "POST" && req.method !== "GET") {
-            respond(res, 405, { ok: false, error: "method" });
-            return;
-          }
-          if (!requestOriginAllowed(req)) {
-            respond(res, 403, { ok: false, error: "origin" });
-            return;
-          }
-          if (req.headers[NATIVE_WINDOW_CONFIRM] !== "1") {
-            respond(res, 403, { ok: false, error: "confirm" });
-            return;
-          }
-          if (!runningInDesktop()) {
-            respond(res, 200, { ok: false, mode: "web", error: "not-desktop" });
-            return;
-          }
-          if (req.method === "GET") {
-            respond(res, 200, {
-              ok: true,
-              mode: "native",
-              platform: process.platform,
-              sessions: nativeWindowSessions(),
-            });
-            return;
-          }
-          readWindowRequest(req, (request) => {
-            if (request === undefined) {
-              respond(res, 400, { ok: false, error: "session" });
-              return;
-            }
-            if (request.action === "close") {
-              if (!nativeWindowSupported(process.platform)) {
-                respond(res, 200, { ok: false, error: "unsupported-platform", platform: process.platform });
-                return;
-              }
-              closeNativeSystemWindow(res, request.sessionId);
-              return;
-            }
-            openNativeSystemWindow(webCtx, res, request.sessionId);
-          });
-        },
-      });
-      const disposeNativeWindowLog = webCtx.webServer.register({
-        kind: "exact",
-        path: NATIVE_WINDOW_LOG_PATH,
-        handler: (req, res) => {
-          if (req.method !== "GET" && req.method !== "HEAD") {
-            respond(res, 405, { ok: false, error: "method" });
-            return;
-          }
-          if (!requestOriginAllowed(req)) {
-            respond(res, 403, { ok: false, error: "origin" });
-            return;
-          }
-          if (req.headers[NATIVE_WINDOW_CONFIRM] !== "1") {
-            respond(res, 403, { ok: false, error: "confirm" });
-            return;
-          }
-          // `window.__dshSplitWorkspace.systemWindowLog()` reads this when a
-          // window fails, so users never have to find %TEMP% by hand.
-          respond(res, 200, {
-            ok: true,
-            platform: process.platform,
-            path: NATIVE_WINDOW_LOG,
-            log: nativeWindowLogTail(NATIVE_WINDOW_LOG_TAIL_LIMIT),
-          });
-        },
-      });
-      return () => {
-        try { disposeVersion(); } catch {}
-        try { disposeRestart(); } catch {}
-        try { disposeHelpAssets(); } catch {}
-        try { disposeNativeWindow(); } catch {}
-        try { disposeNativeWindowLog(); } catch {}
-      };
-    }, "split-workspace: host routes");
   });
 }

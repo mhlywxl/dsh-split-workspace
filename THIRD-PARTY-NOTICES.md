@@ -2,7 +2,7 @@
 
 ## dsh-split-screen
 
-The pane re-hosting engine in `lib/client.js` is derived from
+The pane re-hosting engine in `client.js` is derived from
 **dsh-split-screen 1.7.0**:
 
 - https://github.com/YEYEYEYESHIFU/dsh-split-screen

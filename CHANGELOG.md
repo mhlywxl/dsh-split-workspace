@@ -4,6 +4,18 @@
 
 This file records public releases of `dsh-split-workspace`; each version ends with a one-line English summary.
 
+## [Unreleased]
+
+### Changed
+
+- **工程结构对齐 DSH bundle 规范（纯重构，运行行为不变）。** 包根现在只有 loaders 需要的入口：`index.js`（Host）与 `client.js`（客户端产物），不再把两者混在 `lib/` 构建目录里；`exports`、`files`、CI 与文档同步。
+- **Host 拆成 `src/host/` 模块。** `index.js` 只保留 Cordis `apply()` 的装配；路由表、系统窗口引擎、HTTP 工具、日志/令牌脱敏、重启、平台判断与磁盘版本各自独立，`test.mjs` 仍从 `index.js` 再导出的 helper 做断言。`index.js` 继续导出 `apply`，因此插件契约不变。
+- **客户端源码改为语义化命名。** `src/client/00-preamble.js … 17-api-apply.js` 改为 `entry.js`、`constants.js`、`styles.js`、`runtime.js`、`tree.js`、`pending.js`、`drag-reflow.js`、`faces.js`、`pane-kit.js`、`pane-renderers.js`、`pane-frame.js`、`navigation.js`、`chrome.js`、`drag-bridge.js`、`launcher.js`、`float-window.js`、`standalone.js`、`apply.js`；构建清单集中到 `scripts/build-client.mjs` 的 `MODULES`，生成物带 `//#region src/client/<模块>` 标记，并新增 `npm run dev`（watch）。模块仍共享同一个 module-loader 闭包，因此不引入打包器、运行时依赖不变。
+- **补齐插件详情页。** `locale/en.json` / `locale/zh.json` 增加 `meta.detail`，分别指向 `docs/DETAIL.md` 与 `docs/DETAIL.zh.md`，配一张无文字特性图 `docs/preview.svg`；详情文档与图片随 npm 包发布。
+- 构建脚本会拒绝「源码目录里有文件但未列入 `MODULES`」或「清单指向不存在的文件」，避免新模块悄悄漏进 bundle。
+
+**English summary:** Structure-only refactor to match the DSH bundle convention: the Host entry (`index.js`) and the built client artifact (`client.js`) now live at the package root instead of `lib/`; the Host is split into focused modules under `src/host/` (routes, system window, HTTP, logging, restart, platform, on-disk version); the client sources are renamed by responsibility and driven by an explicit `MODULES` manifest with `//#region` markers and a watch script; and the plugin detail page ships with localized `meta.detail` documents plus one text-free feature image. Runtime behavior and exports are unchanged.
+
 ## [0.14.3] - 2026-11-20
 
 ### Fixed

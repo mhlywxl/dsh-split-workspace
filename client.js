@@ -1,5 +1,8 @@
-// GENERATED FILE — edit src/client/*.js and run `npm run build`.
-// The sections share one module-loader closure; their order matters.
+/**
+ * GENERATED FILE — edit src/client/*.js and run `node scripts/build-client.mjs`.
+ * The sections share one module-loader closure; their order matters.
+ */
+//#region src/client/entry.js
 // dsh-split-workspace — browser half (module-loader bundle)
 //
 // ARCHITECTURE MAP (top → bottom):
@@ -69,7 +72,9 @@ window.__ModuleLoader__.load({
     const h = React.createElement;
 
     const P = require("@deepseek-ai/dsh-client-ui-primitives") || {};
+//#endregion src/client/entry.js
 
+//#region src/client/constants.js
     // ---------------------------------------------------------------------
     // constants + locale
     // ---------------------------------------------------------------------
@@ -1001,7 +1006,9 @@ window.__ModuleLoader__.load({
       }
       return text;
     }
+//#endregion src/client/constants.js
 
+//#region src/client/styles.js
     // ---------------------------------------------------------------------
     // stylesheet (native ui-conversation rules copied under dsv- names —
     // used by the built-in fallback renderer and the workspace chrome)
@@ -2507,7 +2514,9 @@ window.__ModuleLoader__.load({
         tag.remove();
       };
     }
+//#endregion src/client/styles.js
 
+//#region src/client/runtime.js
     // ---------------------------------------------------------------------
     // icon helpers
     // ---------------------------------------------------------------------
@@ -3170,7 +3179,9 @@ window.__ModuleLoader__.load({
           + " If the UI misbehaves: window.__dshSplitWorkspace.health() / retry() / setEnabled(false). See README > Safety, recovery and diagnostics.");
       } catch {}
     }
+//#endregion src/client/runtime.js
 
+//#region src/client/tree.js
     // ---------------------------------------------------------------------
     // split-tree store
     // ---------------------------------------------------------------------
@@ -3605,7 +3616,9 @@ window.__ModuleLoader__.load({
     }
 
     const treeStore = createTreeStore();
+//#endregion src/client/tree.js
 
+//#region src/client/pending.js
     // ---------------------------------------------------------------------
     // pending split + launcher state (0.5.0)
     //
@@ -4028,7 +4041,9 @@ window.__ModuleLoader__.load({
     }
 
     let dragPayload = null; // { kind: 'session' | 'pane', id }
+//#endregion src/client/pending.js
 
+//#region src/client/drag-reflow.js
     // ---------------------------------------------------------------------
     // live pane reflow
     //
@@ -5127,6 +5142,9 @@ window.__ModuleLoader__.load({
     let conversationT = null;
 
     // ---------------------------------------------------------------------
+//#endregion src/client/drag-reflow.js
+
+//#region src/client/faces.js
     // root standard faces (0.1.x + 0.2.0)
     //
     // The stock components a pane re-hosts read GLOBAL standard faces too —
@@ -6411,6 +6429,9 @@ window.__ModuleLoader__.load({
     }
 
     // ---------------------------------------------------------------------
+//#endregion src/client/faces.js
+
+//#region src/client/pane-kit.js
     // slot capture: re-host the native conversation components per pane
     // ---------------------------------------------------------------------
 
@@ -7576,6 +7597,9 @@ window.__ModuleLoader__.load({
     }
 
     // ---------------------------------------------------------------------
+//#endregion src/client/pane-kit.js
+
+//#region src/client/pane-renderers.js
     // native pane (re-hosted ChatView + InputBar with graceful fallback)
     // ---------------------------------------------------------------------
 
@@ -9672,6 +9696,9 @@ window.__ModuleLoader__.load({
     }
 
     // ---------------------------------------------------------------------
+//#endregion src/client/pane-renderers.js
+
+//#region src/client/pane-frame.js
     // pane frame with drop zones
     // ---------------------------------------------------------------------
 
@@ -10731,6 +10758,9 @@ window.__ModuleLoader__.load({
     }
 
     // ---------------------------------------------------------------------
+//#endregion src/client/pane-frame.js
+
+//#region src/client/navigation.js
     // rail + session picker
     // ---------------------------------------------------------------------
 
@@ -12208,6 +12238,9 @@ window.__ModuleLoader__.load({
     }
 
     // ---------------------------------------------------------------------
+//#endregion src/client/navigation.js
+
+//#region src/client/chrome.js
     // plugin chrome: safe-mode chip, blocked chip, help + first-split tips.
     // All of it is plugin-owned, small and corner-anchored (or inside the
     // plugin's own overlay) so it can never cover stock controls.
@@ -13324,6 +13357,9 @@ window.__ModuleLoader__.load({
     }
 
     // ---------------------------------------------------------------------
+//#endregion src/client/chrome.js
+
+//#region src/client/drag-bridge.js
     // inactive-mode drag bridge — the split entry point while the overlay is
     // off. Dragging a conversation from the stock sidebar onto the
     // conversation column (still showing the stock view) splits it: a fixed
@@ -13727,6 +13763,9 @@ window.__ModuleLoader__.load({
     }
 
     // ---------------------------------------------------------------------
+//#endregion src/client/drag-bridge.js
+
+//#region src/client/launcher.js
     // split launcher + session membership (0.5.0)
     //
     // The sidebar footer button opens a small menu (add / exit / minimize /
@@ -14723,6 +14762,9 @@ window.__ModuleLoader__.load({
     /** One floating window: a fixed, movable, resizable frame around the real
         pane (header + transcript + composer). The pane header is the drag
         handle; the wrapper draws the window frame and owns the resize edges. */
+//#endregion src/client/launcher.js
+
+//#region src/client/float-window.js
     function FloatWindow({ id, x, y, width, height, zIndex, focused }) {
       const runtime = useRuntime();
       const style = {
@@ -14819,6 +14861,9 @@ window.__ModuleLoader__.load({
 
     /** Whole-page view used inside a standalone system window: one native
         conversation, native window controls, no split / floats / launcher. */
+//#endregion src/client/float-window.js
+
+//#region src/client/standalone.js
     // ---------------------------------------------------------------------
     // independent window (0.10.0)
     //
@@ -15440,6 +15485,9 @@ window.__ModuleLoader__.load({
         return Promise.resolve("");
       }
     }
+//#endregion src/client/standalone.js
+
+//#region src/client/apply.js
     function restoreSplit() {
       // Show the canvas FIRST: while the pane tree is warm-held, unminimizing is
       // just a visibility flip. The old order ran layout.selectPanel() and a full
@@ -15844,3 +15892,4 @@ window.__ModuleLoader__.load({
     return module.exports;
   },
 });
+//#endregion src/client/apply.js

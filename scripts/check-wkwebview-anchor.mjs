@@ -6,7 +6,7 @@
  * WebKit does not implement `position-anchor` / `anchor()`, so the stock menu
  * CSS collapses to its `top: 12px; left: 12px` fallback and every dropdown
  * paints in the window's top-left corner. The fixture reproduces that state,
- * installs the fallback extracted from `src/client/16-standalone.js`, and
+ * installs the fallback extracted from `src/client/standalone.js`, and
  * asserts that the panel lands above its trigger instead.
  *
  * It needs macOS + WKWebView, so it runs on demand:
@@ -126,7 +126,7 @@ const DRIVER_HTML = `
 
 
 function readFallback() {
-  const source = readFileSync(join(ROOT, "src/client/16-standalone.js"), "utf8");
+  const source = readFileSync(join(ROOT, "src/client/standalone.js"), "utf8");
   const start = source.indexOf("// dsv-anchor-fallback:start");
   const end = source.indexOf("// dsv-anchor-fallback:end");
   if (start === -1 || end <= start) throw new Error("the anchor fallback markers are missing");

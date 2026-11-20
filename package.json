@@ -17,20 +17,23 @@
   "engines": {
     "node": ">=18"
   },
-  "main": "lib/index.js",
   "exports": {
-    ".": "./lib/index.js",
-    "./client": "./lib/client.js",
+    ".": "./index.js",
+    "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
   "files": [
-    "lib/index.js",
-    "lib/client.js",
+    "index.js",
+    "src/host/**",
+    "client.js",
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
+    "docs/DETAIL.md",
+    "docs/DETAIL.zh.md",
+    "docs/preview.svg",
     "docs/screenshots/*.png",
     "docs/screenshots/*.gif",
     "CHANGELOG.md",
@@ -101,9 +104,10 @@
   },
   "scripts": {
     "build": "node scripts/build-client.mjs",
+    "dev": "node scripts/build-client.mjs --watch",
     "build:check": "node scripts/build-client.mjs --check",
     "test": "node scripts/build-client.mjs --check && node test.mjs",
-    "check": "node scripts/build-client.mjs --check && node --check lib/client.js && node test.mjs",
+    "check": "node scripts/build-client.mjs --check && node --check client.js && node test.mjs",
     "check:anchor": "node scripts/check-wkwebview-anchor.mjs",
     "check:windows-window": "node scripts/check-windows-system-window.mjs",
     "pack:check": "npm pack --dry-run"
