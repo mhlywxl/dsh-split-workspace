@@ -578,7 +578,7 @@
               showPaneToast(t("systemWindowNativeClosed"), true);
             } else {
               nativeWindowStore.markOpen(sessionId);
-              showPaneToast(t("systemWindowNativeOpened"), true);
+              showPaneToast(t(payload.engine === "edge" ? "systemWindowEdgeOpened" : "systemWindowNativeOpened"), true);
             }
             return;
           }
@@ -598,4 +598,24 @@
         return false;
       }
       return true;
+    }
+
+    /** Host diagnostics for system windows: returns the Host log tail (launch
+        tokens are redacted by the Host). Also printed to the dev console. */
+    function systemWindowLog() {
+      try {
+        return fetch("/dsv/system-window-log", {
+          method: "GET",
+          cache: "no-store",
+          headers: { "x-dsv-system-window": "1" },
+        }).then((response) => response.json().catch(() => null)).then((payload) => {
+          if (payload === null || payload === undefined || typeof payload.log !== "string") return "";
+          try {
+            console.log("[dsh-split-workspace] system window log (" + String(payload.path || "") + "):\n" + payload.log);
+          } catch {}
+          return payload.log;
+        }).catch(() => "");
+      } catch {
+        return Promise.resolve("");
+      }
     }

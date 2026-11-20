@@ -475,6 +475,10 @@
       nativeWindows() {
         return safeCall("nativeWindows()", () => nativeWindowStore.getSnapshot().slice(), []);
       },
+      /** Host diagnostics for the system window (log tail; tokens redacted). */
+      systemWindowLog() {
+        return safeCall("systemWindowLog()", () => systemWindowLog(), Promise.resolve(""));
+      },
       /** Current independent-window state ({ id, minimized, maximized } or null). */
       appWindow() {
         return safeCall("appWindow()", () => (runtimeState.appWindow === null ? null : Object.assign({}, runtimeState.appWindow)), null);

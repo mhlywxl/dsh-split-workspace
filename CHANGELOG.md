@@ -4,6 +4,22 @@
 
 This file records public releases of `dsh-split-workspace`; each version ends with a one-line English summary.
 
+## [0.14.2] - 2026-11-19
+
+### Fixed
+
+- **真正修复 Windows 上「系统窗口」打不开（退出码 0、没有任何输出、日志空）。** 原因是 helper 在启动阶段就死了，和 WebView2 无关，至少有两处独立缺陷：
+  - **0.14.1 的 helper 里有一处 PowerShell 语法错误**：多行字符串拼接把 `+` 放在续行**开头**（`... 'a'` 换行 `+ 'b'`）。PowerShell 的续行只允许把运算符放在**行尾**；行首 `+` 是解析错误，脚本一行都不会执行。这处代码正是 0.14.1「增加诊断标记」时引入的。现在改成每个元素一行的数组 `-join`，并且测试会拒绝任何行首二元运算符。
+  - **helper 以 detached 方式启动**：Node 在 Windows 上把 `spawn(..., { detached: true })` 映射成 `DETACHED_PROCESS`，子进程**没有控制台**（`windowsHide` 的 `CREATE_NO_WINDOW` 在该组合下被忽略）；Windows PowerShell 5.1 是控制台宿主，这种环境下会以 exit code 0 退出而不执行脚本，stdout/stderr 一个字节也不产生。现在 Windows helper **非 detached** 启动（`windowsHide: true` 只隐藏窗口），Host 仍用 `taskkill /T /F` 结束整棵进程树；PowerShell 优先按绝对路径 `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe` 解析，避免 PATH 影响。macOS 的 osascript helper 行为不变。
+- **WebView2 用户数据目录改用文档化 API。** 原来只靠 `WEBVIEW2_USER_DATA_FOLDER` 环境变量；默认目录由宿主 exe 推导（`System32\WindowsPowerShell\v1.0`，不可写），会以 “Unable to create user data folder, Access Denied” 失败。现在每个窗口用 `CoreWebView2CreationProperties.UserDataFolder` 指向独立的临时目录（环境变量仍作为兜底）。
+- **helper 不再弹 MessageBox。** 非交互进程里的模态框不可见、还可能一直挂住，Host 会误判成功；失败原因只写日志并由 Host 用 toast 提示。
+- **helper 自己的阶段日志（不依赖 stdout/stderr）。** PowerShell 直接追加到 `%TEMP%\dsh-split-workspace-system-window-helper-<会话>-<时间>.log`：`helper enter`（PS 版本、STA、位数、是否交互）、资源与运行时、用户数据目录、`window created, entering the message loop`、异常堆栈、退出码。**没有这个文件 = PowerShell 没跑脚本**；停在某行 = 失败阶段。Host 在 helper 提前退出时会读取并把尾部写进自己的日志和失败 `detail`。
+- **Windows 兜底：Edge 应用窗口。** 如果 helper 仍在启动窗口内退出，Host 会自动用 `msedge.exe --app=<认证 URL>` 打开同一个客户端：`--user-data-dir` 独立配置目录、独立进程、无地址栏/标签页，关窗即结束进程并清理目录；成功时提示「已进入系统窗口（Edge 应用窗口）」，失败 `detail` 同时带 WebView2 与 Edge 两段原因。这样即使 PowerShell/WebView2 宿主在某些机器上不可用，功能也不会完全失效。
+- **诊断入口。** 新增 `window.__dshSplitWorkspace.systemWindowLog()`（Host 路由 `GET /dsv/system-window-log`），直接返回 Host 日志尾部（长 base64 / base64url 令牌脱敏），不必手动找 `%TEMP%`。Host 日志增加 `engine=webview2|edge`、`helperLog=` 和 helper trace 行；日志超过 512 KB 自动只保留尾部。
+- **其他健壮性。** 提前退出检测同时监听 `exit`（不再只等 `close`，否则继承管道的浏览器子进程会让死掉的 helper 被判成“已打开”）；helper 到达消息循环后立刻被用户关掉时不再重复弹出 Edge 窗口；`-LogPath` 同时用 `DSV_HELPER_LOG` 环境变量传递，避免 TEMP 路径里的引号被 PowerShell 参数解析破坏；WebView2 默认背景色改用控件的 `DefaultBackgroundColor`（`CoreWebView2` 没有 `Controller` 属性）；`Application.SetUnhandledExceptionMode(CatchException)` 阻止 WinForms 弹出会挂住非交互进程的错误对话框。
+
+**English summary:** Windows system windows now actually open. The helper died during startup for two independent reasons, neither of them WebView2: (1) 0.14.1's helper contained a PowerShell syntax error — a multi-line concatenation put `+` at the **start** of continuation lines, which PowerShell rejects (operators must end the line), so the script never executed; (2) the helper was spawned `detached`, which Windows turns into `DETACHED_PROCESS` with **no console** — Windows PowerShell 5.1 is a console host and exited **0** without running the script or writing a byte (`helper exit code=0 (no output)`). It is now spawned attached but hidden, with PowerShell resolved via the absolute System32 path. The helper is now spawned attached but hidden, resolved through the absolute System32 PowerShell path, sets its WebView2 profile via `CoreWebView2CreationProperties.UserDataFolder`, never opens a modal dialog, and writes its own stage trace to `%TEMP%\dsh-split-workspace-system-window-helper-<session>-<time>.log` (missing file = PowerShell never ran the script). When the helper still dies during startup, the Host falls back to a chromeless Microsoft Edge app window (`--app=<authenticated URL>` with its own `--user-data-dir`), and `window.__dshSplitWorkspace.systemWindowLog()` / `GET /dsv/system-window-log` returns the Host log tail for diagnostics.
+
 ## [0.14.1] - 2026-11-19
 
 ### Fixed

@@ -12,6 +12,14 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { nativeWindowSupported, restartCommand, systemWindowCommand } from "./lib/index.js";
+import {
+  edgeAppWindowCommand,
+  edgeExecutableCandidates,
+  findEdgeExecutable,
+  redactNativeWindowText,
+  windowsPowerShellCandidates,
+  windowsPowerShellPath,
+} from "./lib/index.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
@@ -507,8 +515,8 @@ test("locale dictionaries cover the independent window and settings page", () =>
   for (const key of [
     "menuSystemWindow", "systemWindowOpened", "systemWindowFailed", "standaloneFullscreen",
     "menuGroup", "menuIndependentOpen", "menuIndependentClose", "menuNativeOpen", "menuNativeClose",
-    "systemWindowOpening", "systemWindowClosing", "systemWindowNativeOpened", "systemWindowNativeClosed",
-    "systemWindowUnsupported",
+    "systemWindowOpening", "systemWindowClosing", "systemWindowNativeOpened", "systemWindowEdgeOpened",
+    "systemWindowNativeClosed", "systemWindowUnsupported",
     "independentMinimize", "independentRestore", "independentClose",
     "settingsNav", "settingsHeading", "settingsDesc", "settingsStatus", "settingsVersion",
     "settingsPanes", "settingsPending", "settingsFloats", "settingsPerformance",
@@ -610,16 +618,32 @@ test("Windows system window: PowerShell + WebView2 helper assets", () => {
     "CoreWebView2InitializationCompleted",
     "GetAvailableBrowserVersionString",
     "WEBVIEW2_USER_DATA_FOLDER",
+    "CoreWebView2CreationProperties",
+    "UserDataFolder",
     "SetDllDirectory",
     "WebView2Loader.dll",
     "UrlB64",
     "Application]::Run",
-    "helper start",
+    "helper enter",
     "assets ok, WebView2 runtime",
     "window created, entering the message loop",
+    "Write-DsvLog",
+    "AppendAllText",
+    "add_UnhandledException",
+    "add_ThreadException",
+    "LogPath",
+    "DSV_HELPER_LOG",
+    "SetUnhandledExceptionMode",
+    "exiting code=5",
   ]) {
     assert(helper.includes(token), `missing Windows helper support: ${token}`);
   }
+  // A continuation line that STARTS with a binary operator is a PowerShell
+  // parse error (0.14.1 shipped one and could never execute the script).
+  assert(!/^\s*\+/mu.test(helper), "the helper must not start a line with a binary operator");
+  // A non-interactive helper must never open a modal dialog: it would hang
+  // invisibly and the Host would report a success while no window appeared.
+  assert(!helper.includes("[System.Windows.Forms.MessageBox]"), "the Windows helper must not open modal dialogs");
   // The helper must keep its diagnostics and its failure codes distinct: the
   // Host maps exit code 3 to the "install the WebView2 Runtime" hint.
   assert(helper.includes("[Environment]::Exit($Code)"), "the helper must exit with explicit codes");
@@ -646,7 +670,9 @@ test("system window helper command targets macOS and Windows", () => {
   assert(mac.command === "/usr/bin/osascript", "macOS must run the JXA helper through osascript");
   assert(mac.args.includes("system-window.jxa") || mac.args.some((arg) => arg.endsWith("system-window.jxa")), "macOS must pass the JXA helper");
   assert(mac.args[mac.args.length - 1].endsWith("#dsv-system-window=s1"), "macOS must append the system window marker");
-  const win = systemWindowCommand("win32", "http://127.0.0.1:1/?t=a&b=c", "s1");
+  // Empty env keeps this assertion platform-independent: on a Windows dev box
+  // the resolver would legitimately return the absolute System32 powershell.exe.
+  const win = systemWindowCommand("win32", "http://127.0.0.1:1/?t=a&b=c", "s1", { env: {} });
   assert(win.command === "powershell.exe", "Windows must run the PowerShell helper");
   const args = win.args.join(" ");
   for (const token of ["-File", "system-window.ps1", "-UrlB64", "-WebView2Dir", "webview2"]) {
@@ -657,6 +683,81 @@ test("system window helper command targets macOS and Windows", () => {
   const decoded = Buffer.from(encoded, "base64").toString("utf8");
   assert(decoded === "http://127.0.0.1:1/?t=a&b=c#dsv-system-window=s1", "the Windows helper must receive the marker URL verbatim");
   assert(systemWindowCommand("win32", "http://x/", "bad id!") === null, "invalid session ids must be rejected before spawning");
+  // The helper appends its own trace to the file the Host reads back.
+  const traced = systemWindowCommand("win32", "http://x/", "s1", { helperLog: join(ROOT, "tmp-helper.log") });
+  assert(traced.args.includes("-LogPath"), "the Windows helper must receive -LogPath");
+  assert(traced.args[traced.args.indexOf("-LogPath") + 1] === join(ROOT, "tmp-helper.log"), "the helper log path must be passed verbatim");
+});
+
+test("Windows system window: PowerShell is resolved, Edge app window is the fallback", () => {
+  const env = {
+    SystemRoot: "C:\\Windows",
+    ProgramFiles: "C:\\Program Files",
+    "ProgramFiles(x86)": "C:\\Program Files (x86)",
+  };
+  const system32 = join(env.SystemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  assert(windowsPowerShellCandidates(env)[0] === system32, "the System32 PowerShell must be the first candidate");
+  assert(windowsPowerShellPath(env, () => true) === system32, "an installed System32 PowerShell must win over PATH");
+  assert(windowsPowerShellPath(env, () => false) === "powershell.exe", "without the absolute file, the command name is used");
+  assert(windowsPowerShellPath({}, () => false) === "powershell.exe", "no SystemRoot must not break the command");
+
+  const x86Edge = join(env["ProgramFiles(x86)"], "Microsoft", "Edge", "Application", "msedge.exe");
+  const candidates = edgeExecutableCandidates(env);
+  assert(candidates.includes(x86Edge), "Edge under Program Files (x86) must be a candidate");
+  assert(findEdgeExecutable(env, (path) => path === x86Edge) === x86Edge, "an installed Edge must be found");
+  assert(findEdgeExecutable(env, () => false) === null, "a machine without Edge must report none");
+
+  // The fallback is Windows-only and must never point Edge at the user's own
+  // profile: a dedicated --user-data-dir is what makes the spawned process own
+  // the window (and its exit means "window closed").
+  assert(edgeAppWindowCommand("darwin", "http://x/", "s1", { edgePath: x86Edge }) === null, "macOS must not use the Edge fallback");
+  assert(edgeAppWindowCommand("linux", "http://x/", "s1", { edgePath: x86Edge }) === null, "Linux must not use the Edge fallback");
+  const profileDir = join(ROOT, "tmp-edge-profile");
+  const command = edgeAppWindowCommand("win32", "http://127.0.0.1:1/?t=a", "s1", { edgePath: x86Edge, profileDir });
+  assert(command !== null, "Windows must build an Edge app-window command");
+  assert(command.command === x86Edge, "the Edge fallback must run the resolved msedge.exe");
+  assert(command.args[0] === "--app=http://127.0.0.1:1/?t=a#dsv-system-window=s1", "Edge must load the marker URL in app mode");
+  assert(command.args.includes("--user-data-dir=" + profileDir), "the Edge fallback needs its own profile directory");
+  assert(command.args.some((arg) => arg.startsWith("--window-size=")), "the Edge app window must get an explicit size");
+  assert(command.args.includes("--no-first-run"), "the Edge app window must skip the first-run flow");
+  assert(command.args.includes("--disable-background-mode"), "Edge must exit when the window closes");
+});
+
+test("system window: launch tokens stay out of diagnostics", () => {
+  // DSH mints URL-safe base64 tokens; the standard-base64-only pattern used by
+  // 0.14.1 left most of them readable in the log.
+  const token = "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdEfG";
+  const redacted = redactNativeWindowText("url?t=" + token + "&x=1");
+  assert(!redacted.includes(token), "a URL-safe launch token must be redacted");
+  assert(redacted.includes("<redacted>"), "redaction must leave a marker");
+  assert(redactNativeWindowText("/tmp/dsh-split-workspace-helper-a1.log") === "/tmp/dsh-split-workspace-helper-a1.log",
+    "short hyphenated paths must stay readable");
+});
+
+test("Windows system window: no console-less spawn, helper trace and diagnostics route", () => {
+  const host = read("lib/index.js");
+  // Root cause of 0.14.1: `detached: true` on Windows creates the child with
+  // DETACHED_PROCESS, i.e. no console; Windows PowerShell 5.1 then exits 0
+  // without running the script and writes nothing to the pipes.
+  assert(
+    host.includes("detached: process.platform !== \"win32\""),
+    "the Windows helper must not be spawned detached (DETACHED_PROCESS removes its console)",
+  );
+  for (const token of [
+    "helperLogPath(", "helper trace", "helperLog=",
+    "findEdgeExecutable", "edgeAppWindowCommand", "systemWindowTarget",
+    "windowsPowerShellPath", "msedge.exe", "--app=", "--user-data-dir=",
+    "edge-window", "engine: \"edge\"", "fallback: true", "engines:",
+    "system-window-log", "systemWindowLog", "NATIVE_WINDOW_LOG_TAIL_LIMIT",
+    "sweepNativeWindowArtifacts", "cleanupNativeWindowProfile", "trimNativeWindowLog",
+    "DSV_HELPER_LOG", "dsvEngine", "form shown",
+  ]) {
+    assert(host.includes(token), `missing Windows system-window support: ${token}`);
+  }
+  const client = read("lib/client.js");
+  for (const token of ["systemWindowEdgeOpened", "systemWindowLog()", "/dsv/system-window-log"]) {
+    assert(client.includes(token), `missing client support: ${token}`);
+  }
 });
 
 

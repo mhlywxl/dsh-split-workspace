@@ -2,7 +2,7 @@
 
 **中文（默认）** · [English](#english)
 
-把 DeepSeek Harness 的对话区拆成原生多窗格工作区——左右分屏、上下分屏、田字 2×2 或自动网格，窗口放得下多少会话就开多少。每个窗格都是真实会话，拥有自己的输入框、流式输出、停止、队列、待办、附件、`/` 命令、`ask_user_question`、审批与视图页，桌面端（`dsh-app://`）同样可用。还可以把任意会话变成可拖动、可缩放的**浮窗**，在分屏与浮窗两种模式之间来回切换；或把它放进**应用内独立窗口**（关闭 / 最小化 / 最大化 / 全屏），桌面版还可以把它放进**真正的系统窗口**（macOS 用系统 WebView、Windows 用 WebView2，独立于 DSH 主窗口，不经过浏览器）；并支持从侧边栏菜单和**系统设置**两个入口操作。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+把 DeepSeek Harness 的对话区拆成原生多窗格工作区——左右分屏、上下分屏、田字 2×2 或自动网格，窗口放得下多少会话就开多少。每个窗格都是真实会话，拥有自己的输入框、流式输出、停止、队列、待办、附件、`/` 命令、`ask_user_question`、审批与视图页，桌面端（`dsh-app://`）同样可用。还可以把任意会话变成可拖动、可缩放的**浮窗**，在分屏与浮窗两种模式之间来回切换；或把它放进**应用内独立窗口**（关闭 / 最小化 / 最大化 / 全屏），桌面版还可以把它放进**真正的系统窗口**（macOS 用系统 WebView、Windows 用 WebView2，独立于 DSH 主窗口，没有地址栏；Windows helper 起不来时自动退回无地址栏的 Edge 应用窗口）；并支持从侧边栏菜单和**系统设置**两个入口操作。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 快速开始
 
@@ -14,7 +14,7 @@
 | 桌面端 DSH Desktop（`dsh-app://`） | 日常使用，支持完整桌面能力，推荐 | `desktop` profile，由桌面端管理 |
 
 - 支持 DSH 0.2.0 / 0.2.1，当前针对 0.2.1-rc.2 构建。
-- 包内 `lib/client.js` 已预构建，无 Node 原生模块、无安装脚本，客户端的 macOS / Windows / Linux 行为一致；Windows 的「系统窗口」随包附带 WebView2 SDK（约 1.1 MB，BSD-3-Clause），无需本地编译，但需要机器已安装 Microsoft Edge WebView2 运行时（Windows 11 自带，Windows 10 装过新版 Edge 即有）。
+- 包内 `lib/client.js` 已预构建，无 Node 原生模块、无安装脚本，客户端的 macOS / Windows / Linux 行为一致；Windows 的「系统窗口」随包附带 WebView2 SDK（约 1.1 MB，BSD-3-Clause），无需本地编译。WebView2 宿主需要机器已安装 Microsoft Edge WebView2 运行时（Windows 11 自带，Windows 10 装过新版 Edge 即有）；缺失或 helper 起不来时会自动退回 Edge 应用窗口。
 - 插件本身运行时不联网。
 
 ### Web：在线安装
@@ -132,19 +132,27 @@ dsh --profile web
 
 ## 系统窗口（原生独立窗口，0.11.0 macOS / 0.14.0 Windows）
 
-- 右键会话 → **分屏插件** → **进入系统窗口**：在 macOS 或 Windows 上打开一个**真正的操作系统窗口**。它不是 DSH 主窗口里的一层浮层，可以拖到主窗口之外、单独缩放和关闭，不会打开浏览器，也没有地址栏。该会话的系统窗口已经打开时，菜单显示 **退出系统窗口**；在窗口里点关闭（或从菜单退出）后，菜单会自动回到「进入系统窗口」。
+- 右键会话 → **分屏插件** → **进入系统窗口**：在 macOS 或 Windows 上打开一个**真正的操作系统窗口**。它不是 DSH 主窗口里的一层浮层，可以拖到主窗口之外、单独缩放和关闭，没有地址栏。该会话的系统窗口已经打开时，菜单显示 **退出系统窗口**；在窗口里点关闭（或从菜单退出）后，菜单会自动回到「进入系统窗口」。
 - 窗口内容仍然是这个会话的真实客户端：**左侧栏不显示**（会话占满窗口），**右侧栏、对话头部、输入框、视图页等都照常保留**，右上角的「打开右侧边栏」依然可用。
 - **实现方式（macOS）**：DSH 没有向插件开放 Electron `BrowserWindow`，所以插件 Host 用系统自带的 AppKit `NSWindow` + `WKWebView`（`osascript` 运行 `native/system-window.jxa`）打开窗口，并让这个 WebView 加载 Host 的**本机认证 Web 客户端**。认证 URL 由 Host 在进程内生成，只传给本机 Helper，**不会返回给渲染层**；哈希标记让同一份客户端代码在窗口内切换成「系统窗口模式」。
-- **实现方式（Windows）**：Host 用 `powershell.exe` 启动 `native/system-window.ps1`，由 PowerShell + WinForms 建窗口、内嵌 WebView2 控件加载同一份认证 Web 客户端。`native/webview2/` 随包附带 WebView2 SDK（`Microsoft.Web.WebView2.Core.dll`、`Microsoft.Web.WebView2.WinForms.dll` 与 x64/arm64 的 `WebView2Loader.dll`，BSD-3-Clause），每个窗口使用独立的临时 WebView2 配置目录；关窗或退出 DSH 时连同 `msedgewebview2` 进程树一起结束。
-- **平台**：macOS 与 Windows。Linux（或 Web 客户端）上点击会提示改用「进入独立窗口」，不会退回浏览器。Windows 缺少 **Microsoft Edge WebView2 运行时**时会提示先安装再试。窗口标题跟随会话标题；关闭窗口即结束 Helper 进程，退出 DSH 时也会一并关闭这些窗口。
+- **实现方式（Windows）**：Host 用 `powershell.exe` 启动 `native/system-window.ps1`，由 PowerShell + WinForms 建窗口、内嵌 WebView2 控件加载同一份认证 Web 客户端。`native/webview2/` 随包附带 WebView2 SDK（`Microsoft.Web.WebView2.Core.dll`、`Microsoft.Web.WebView2.WinForms.dll` 与 x64/arm64 的 `WebView2Loader.dll`，BSD-3-Clause），每个窗口用 `CoreWebView2CreationProperties` 指定独立的临时 WebView2 配置目录；关窗或退出 DSH 时连同 `msedgewebview2` 进程树一起结束。
+- **Windows 启动方式（0.14.2 修复）**：helper 在启动阶段就死了，和 WebView2 无关，有两处独立缺陷：
+  - **0.14.1 的 helper 有一处 PowerShell 语法错误**：多行字符串拼接把 `+` 放在续行**开头**（`... 'a'` 换行 `+ 'b'`）。PowerShell 只允许运算符在**行尾**续行，行首 `+` 是解析错误，脚本一行都不会执行——所以 0.14.1 增加的诊断标记从未出现。现在改成每个元素一行的数组 `-join`，并有测试拒绝任何行首二元运算符。
+  - **helper 原来以 detached 方式启动**：Node 在 Windows 上把 `detached: true` 映射为 `DETACHED_PROCESS`，子进程因此**没有控制台**；Windows PowerShell 5.1 是控制台宿主，在这种环境下会以退出码 0 结束、不执行脚本、stdout/stderr 一个字节都没有。现在 helper 以隐藏窗口但**有控制台**的方式启动（`windowsHide: true`、非 detached），Host 照旧用 `taskkill /T` 结束整个进程树。Windows 的 PowerShell 也优先按绝对路径 `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe` 解析，避免 PATH 影响。
+- **Windows 兜底（0.14.2）**：如果 WebView2 helper 仍在启动窗口内异常退出，Host 会自动改用 **Microsoft Edge 应用窗口模式**（`msedge.exe --app=<认证 URL>`，独立的 `--user-data-dir`，无地址栏/标签栏、独立进程）。它同样是真正的系统窗口，关窗即结束该 Edge 进程并清理临时配置目录；成功时提示为「已进入系统窗口（Edge 应用窗口）」。这样在 PowerShell/WebView2 宿主不可用的机器上功能也不会完全失效。
+- **平台**：macOS 与 Windows。Linux（或 Web 客户端）上点击会提示改用「进入独立窗口」，不会退回浏览器。Windows 缺少 **Microsoft Edge WebView2 运行时**时不再直接报错：会自动改用 Edge 应用窗口打开（见上一条兜底）。窗口标题跟随会话标题；关闭窗口即结束 Helper 进程，退出 DSH 时也会一并关闭这些窗口。
 - macOS 的 Helper 是辅助型进程，不占 Dock 图标，因此**没有最小化按钮**（避免最小化后无法从 Dock 恢复）；提供关闭、缩放和标题栏拖动。Windows 使用系统标题栏，最小化 / 最大化 / 关闭都可用。
 - **菜单定位**：DSH 的弹层菜单用 CSS Anchor Positioning（`position-anchor` + `anchor()`）把自己挂在触发按钮旁边；Chromium（主窗口）支持，但 macOS 的 WKWebView 不支持，菜单会退到窗口左上角、盖住标题栏。系统窗口模式下插件会检测这一能力缺失，并按菜单自带的 `data-anchor-side` / `data-anchor-align`（以及模型选择器的锚点自定义属性）在触发按钮旁重新定位：向上打开的菜单贴着按钮上沿、右对齐，并限制最大高度。
 - **注意**：系统窗口是独立的 Web 客户端，所以桌面端专属能力（如原生文件拖拽、系统目录选择器）在窗口内的行为以 Web 客户端为准；会话数据与主窗口共享同一个 Host，输入、流式输出和右侧栏功能正常。
-- **失败诊断（Windows）**：打不开系统窗口时，Host 会把 helper 的阶段标记和错误写进 `%TEMP%\dsh-split-workspace-system-window.log`（长 base64 令牌会脱敏），失败的 `detail` 也会打到开发者控制台。也可以绕开 DSH 直接跑 helper 自测（会打开一个连接到 `127.0.0.1:9` 的空窗口；能打开说明脚本本身正常，控制台报错就是根因）：
+- **失败诊断（Windows）**：三层日志都能定位问题：
+  - Host 日志 `%TEMP%\dsh-split-workspace-system-window.log`：`opening …` / `helper exit … engine=webview2|edge code=…` / `helper trace (…)`，长 base64 令牌会脱敏。
+  - Helper 自己的阶段日志 `%TEMP%\dsh-split-workspace-system-window-helper-<会话>-<时间>.log`：`helper enter`（PS 版本、STA、位数、是否交互）、`assets ok, WebView2 runtime …`、`WebView2 user data folder=…`、`window created, entering the message loop`、`exception at …` 等。它由 PowerShell 直接写文件，不依赖 stdout/stderr——**如果这个文件不存在，说明 PowerShell 根本没执行脚本**；如果存在但停在某一行，就是失败阶段。
+  - 在应用里执行 `window.__dshSplitWorkspace.systemWindowLog()`（或 `GET /dsv/system-window-log`，带 `x-dsv-system-window: 1` 头）可直接拿到 Host 日志尾部，无需手动找 `%TEMP%`。
+  - 也可以绕开 DSH 直接跑 helper 自测（会打开一个连接到 `127.0.0.1:9` 的空窗口；能打开说明脚本本身正常，控制台/日志报错就是根因）：
 
   ```powershell
   $p = Get-ChildItem $env:APPDATA, $env:LOCALAPPDATA -Recurse -Filter system-window.ps1 -Depth 10 -ErrorAction SilentlyContinue | Select-Object -First 1
-  powershell -NoProfile -ExecutionPolicy Bypass -File $p.FullName -UrlB64 aHR0cDovLzEyNy4wLjAuMTo5Lw== -WebView2Dir (Join-Path $p.DirectoryName 'webview2')
+  powershell -NoProfile -ExecutionPolicy Bypass -File $p.FullName -UrlB64 aHR0cDovLzEyNy4wLjAuMTo5Lw== -WebView2Dir (Join-Path $p.DirectoryName 'webview2') -LogPath (Join-Path $env:TEMP 'dsv-helper-selftest.log')
   ```
 
 ![系统窗口：不再显示左侧栏，右侧栏与对话区照常保留](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/system-window.png)
@@ -254,6 +262,7 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 - `window.__dshSplitWorkspace.openNativeWindow(sessionId)`：在原生系统窗口（macOS / Windows）打开该会话；Linux 或非桌面版会提示改用独立窗口。
 - `window.__dshSplitWorkspace.closeNativeWindow(sessionId)`：关闭该会话的系统窗口。
 - `window.__dshSplitWorkspace.nativeWindows()`：当前已打开系统窗口的会话 id 列表。
+- `window.__dshSplitWorkspace.systemWindowLog()`：系统窗口诊断，返回 Host 日志尾部（长 base64 令牌已脱敏；打不开窗口时先看这里）。
 - `window.__dshSplitWorkspace.appWindow()`：当前独立窗口状态（`{ id, minimized, maximized }` 或 `null`）。
 - `window.__dshSplitWorkspace.setPerformanceMode(true/false)`：开关性能模式（持久化）。
 - `window.__dshSplitWorkspace.performanceMode()`：当前是否处于性能模式。
@@ -324,7 +333,7 @@ will land:
 - 「浮窗」是应用内窗口，不是 Electron 原生第二窗口：DSH Desktop 主窗口禁用了 `window.open`，Web 客户端也没有会话深链；浮窗复用真实会话组件、可拖动缩放，但仍在 DSH 主窗口内渲染（详见上面的「为什么浮窗不是系统级独立窗口？」）。
 - 浮窗和分屏窗格互斥；同一会话不会同时以两种形态渲染，避免共享编辑器冲突。
 - 「独立窗口」是应用内窗口：它不打开浏览器、没有地址栏，但不能移出 DSH 主窗口。桌面版（macOS / Windows）另提供「进入系统窗口」（系统 WebView / WebView2，真正的独立窗口）；DSH 本身仍未向插件开放 Electron `BrowserWindow`。独立窗口内的会话同样互斥于分屏和浮窗。
-- 「系统窗口」是独立的 Web 客户端：需要 DSH 桌面版 + macOS，或 Windows + Microsoft Edge WebView2 运行时；它不共享主窗口的桌面专属能力（原生文件拖拽、系统目录选择器）。
+- 「系统窗口」是独立的 Web 客户端：需要 DSH 桌面版 + macOS，或 Windows（优先 WebView2，helper 起不来时用 Edge 应用窗口兜底）；它不共享主窗口的桌面专属能力（原生文件拖拽、系统目录选择器）。
 - 持久化递归深度上限为 32 层，是为了手改数据时的栈安全，不是窗格上限。
 - 隐藏的原生会话仍在遮罩下流式运行；窗格重新挂载原生输入框，所以每个窗格自己的输入框拥有该会话的编辑器。
 - 窗格重命名拒绝空会话（原生重命名对话框同样如此）。
@@ -344,7 +353,8 @@ conversation can also become a movable, resizable **floating window**, switch
 between the two modes at any time, move into an **in-app independent window**
 (close / minimize / maximize / fullscreen), or — in DSH Desktop on macOS or
 Windows — open a real **native OS window** (system WebView on macOS, WebView2 on
-Windows; no browser, no left sidebar) for one
+Windows, with a chromeless Edge app window as the automatic Windows fallback;
+no address bar, no left sidebar) for one
 conversation. The session menu's **Split plugin** submenu holds the
 `Join split / Leave split` toggle together with all three window surfaces,
 each showing **Exit …** while that surface is open.
@@ -556,7 +566,7 @@ logic stays unchanged.
 
 - Right-click a conversation → **Split plugin** → **Enter system window** opens a
   **real OS window**: movable outside the DSH main window, resizable and closable
-  on its own, with no browser and no address bar. While it is open the menu shows
+  on its own, with no address bar. While it is open the menu shows
   **Exit system window**, and closing the window itself flips the menu back.
 - The window shows the real conversation client: **no left sidebar** (the
   conversation fills the window) while the **right sidebar**, header, composer and
@@ -567,11 +577,29 @@ logic stays unchanged.
   `powershell.exe`). Both load the Host's **locally authenticated web client**:
   the URL is minted inside the Host and never returned to the renderer, and a hash
   marker turns the same client into the single-conversation system-window mode.
+- **Windows launch fix (0.14.2)**: the helper died during startup for two independent reasons, neither involving WebView2. (a) The 0.14.1 helper had a **PowerShell syntax error**: a multi-line concatenation put `+` at the start of continuation lines, and PowerShell only continues a line after an operator — so the script never ran (fixed by building the string with a `-join` array, plus a test that rejects line-leading operators). (b) The helper was spawned `detached`.
+  On Windows Node maps `detached: true` to `DETACHED_PROCESS`, which gives the
+  child **no console**; Windows PowerShell 5.1 is a console host, so it exited 0
+  without running the script and wrote nothing to stdout/stderr (the 0.14.0 /
+  0.14.1 log showed only `helper exit code=0 (no output)`). It now starts hidden
+  but attached (`windowsHide: true`, not detached) and the process tree is still
+  torn down with `taskkill /T`. PowerShell itself is resolved by absolute path
+  (`%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`) before PATH.
+- **Windows fallback (0.14.2)**: if the WebView2 helper still dies during startup,
+  the Host automatically opens the same client in **Microsoft Edge app mode**
+  (`msedge.exe --app=<authenticated URL>`, a dedicated `--user-data-dir`, its own
+  process, no address bar or tab strip). Closing it ends that Edge process and
+  deletes the temporary profile; the toast then reads "Entered the system window
+  (Edge app window)". This keeps the feature usable on machines where the
+  PowerShell/WebView2 host cannot start.
 - **Platforms**: macOS and Windows. Linux (or the Web client) is told to use the
-  independent window instead, and a missing Microsoft Edge WebView2 Runtime is
-  reported explicitly on Windows. The helper ships with the package (about 1.1 MB)
-  and needs no local build; each window gets its own temporary WebView2 profile,
-  and closing it ends the whole helper process tree.
+  independent window instead. On Windows a missing Microsoft Edge WebView2
+  Runtime no longer fails outright: the Edge app-window fallback opens instead.
+  The helper
+  ships with the package (about 1.1 MB) and needs no local build; each window gets
+  its own temporary WebView2 profile (set through the documented
+  `CoreWebView2CreationProperties.UserDataFolder`), and closing it ends the whole
+  helper process tree.
 - **Menu placement**: the stock DSH menus portal themselves next to their trigger
   with CSS Anchor Positioning (`position-anchor` + `anchor()`). Chromium supports
   it, WebKit/WKWebView does not, so dropdowns would otherwise fall back to the
@@ -583,11 +611,26 @@ logic stays unchanged.
 - Desktop-only capabilities (native file drag, system directory picker) follow the
   Web client inside the window; conversations share the same Host, so input,
   streaming and the right sidebar work normally.
-- **Diagnosing failures (Windows)**: the Host writes the helper's stage markers and error output to `%TEMP%\dsh-split-workspace-system-window.log` (long base64 launch tokens are redacted), and prints the failure `detail` to the Developer Tools console. You can also run the helper directly (it opens an empty window pointing at `127.0.0.1:9`; if that window opens, the script itself is fine and the console error is the cause):
+- **Diagnosing failures (Windows)**: three logs pinpoint the stage:
+  - Host log `%TEMP%\dsh-split-workspace-system-window.log`:
+    `opening …` / `helper exit … engine=webview2|edge code=…` / `helper trace (…)`,
+    with long base64 launch tokens redacted.
+  - Helper trace `%TEMP%\dsh-split-workspace-system-window-helper-<session>-<time>.log`:
+    `helper enter` (PowerShell version, STA, bitness, interactive), `assets ok,
+    WebView2 runtime …`, `WebView2 user data folder=…`, `window created, entering
+    the message loop`, `exception at …`. PowerShell writes it directly to a file,
+    so it survives broken stdout/stderr: **no file at all means PowerShell never
+    ran the script**; a file that stops on a line names the failing stage.
+  - In the app, `window.__dshSplitWorkspace.systemWindowLog()` (or `GET
+    /dsv/system-window-log` with the `x-dsv-system-window: 1` header) returns the
+    Host log tail, so nobody has to hunt for `%TEMP%` by hand.
+  - You can also run the helper directly (it opens an empty window pointing at
+    `127.0.0.1:9`; if that window opens, the script itself is fine and the logged
+    error is the cause):
 
   ```powershell
   $p = Get-ChildItem $env:APPDATA, $env:LOCALAPPDATA -Recurse -Filter system-window.ps1 -Depth 10 -ErrorAction SilentlyContinue | Select-Object -First 1
-  powershell -NoProfile -ExecutionPolicy Bypass -File $p.FullName -UrlB64 aHR0cDovLzEyNy4wLjAuMTo5Lw== -WebView2Dir (Join-Path $p.DirectoryName 'webview2')
+  powershell -NoProfile -ExecutionPolicy Bypass -File $p.FullName -UrlB64 aHR0cDovLzEyNy4wLjAuMTo5Lw== -WebView2Dir (Join-Path $p.DirectoryName 'webview2') -LogPath (Join-Path $env:TEMP 'dsv-helper-selftest.log')
   ```
 
 ### Settings entry
@@ -815,6 +858,14 @@ architecture the upstream plugin uses.
 - `window.__dshSplitWorkspace.openSystemWindow(sessionId)` — open the
   conversation in the app-internal independent window (`openIndependentWindow`
   is an alias).
+- `window.__dshSplitWorkspace.openNativeWindow(sessionId)` /
+  `closeNativeWindow(sessionId)` — open/close the real system window; on Windows
+  the Host falls back to an Edge app window automatically.
+- `window.__dshSplitWorkspace.nativeWindows()` — session ids with an open system
+  window.
+- `window.__dshSplitWorkspace.systemWindowLog()` — system-window diagnostics:
+  the Host log tail with launch tokens redacted (check this first when a window
+  does not open).
 - `window.__dshSplitWorkspace.appWindow()` — current independent-window state
   (`{ id, minimized, maximized }` or `null`).
 - `window.__dshSplitWorkspace.setPerformanceMode(true/false)` /
