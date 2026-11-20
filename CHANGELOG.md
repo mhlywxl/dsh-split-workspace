@@ -4,7 +4,7 @@
 
 This file records public releases of `dsh-split-workspace`; each version ends with a one-line English summary.
 
-## [Unreleased]
+## [0.14.4] - 2026-11-20
 
 ### Changed
 
