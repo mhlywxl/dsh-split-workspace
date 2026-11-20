@@ -139,6 +139,7 @@ dsh --profile web
 - **Windows 启动方式（0.14.2 修复）**：helper 在启动阶段就死了，和 WebView2 无关，有两处独立缺陷：
   - **0.14.1 的 helper 有一处 PowerShell 语法错误**：多行字符串拼接把 `+` 放在续行**开头**（`... 'a'` 换行 `+ 'b'`）。PowerShell 只允许运算符在**行尾**续行，行首 `+` 是解析错误，脚本一行都不会执行——所以 0.14.1 增加的诊断标记从未出现。现在改成每个元素一行的数组 `-join`，并有测试拒绝任何行首二元运算符。
   - **helper 原来以 detached 方式启动**：Node 在 Windows 上把 `detached: true` 映射为 `DETACHED_PROCESS`，子进程因此**没有控制台**；Windows PowerShell 5.1 是控制台宿主，在这种环境下会以退出码 0 结束、不执行脚本、stdout/stderr 一个字节都没有。现在 helper 以隐藏窗口但**有控制台**的方式启动（`windowsHide: true`、非 detached），Host 照旧用 `taskkill /T` 结束整个进程树。Windows 的 PowerShell 也优先按绝对路径 `%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe` 解析，避免 PATH 影响。
+- **Windows 可见性修复（0.14.3）**：0.14.2 不再报错，但窗口其实从未出现在屏幕上（helper 日志停在 `WebView2 navigation requested`，同时写着 `form shown visible=True`）。原因是 Host 用 `windowsHide: true` 隐藏 PowerShell 控制台时，Node 会把它变成 `CreateProcess` 的 `STARTF_USESHOWWINDOW | SW_HIDE`，而 Win32 把这个值套在该进程的**第一次 `ShowWindow`** 上——正好是 WinForms 显示主窗体的那一次：窗口被创建、托管 `Visible=True`、WebView2 初始化并导航，屏幕上却什么都没有。现在 helper 在 `Shown` 后用 user32 再显示一次（第二次调用生效）、把窗口带到前台，并记录真实的 `form displayed osVisible=True`；Host **只有看到这一行**才提示“已进入系统窗口”，看到 `osVisible=False` 或超时没有结论时，会结束这个看不见的 helper 并改用 Edge 应用窗口。日志里的 `beforeForceShow=False` 就是这次 bug 的特征。可在 Windows 上运行 `npm run check:windows-window` 做端到端自检（用与 Host 完全相同的方式启动随包 helper，要求真实窗口可见且 WebView2 初始化成功），CI 的 `windows system window` job 每次 push 都会跑它。
 - **Windows 兜底（0.14.2）**：如果 WebView2 helper 仍在启动窗口内异常退出，Host 会自动改用 **Microsoft Edge 应用窗口模式**（`msedge.exe --app=<认证 URL>`，独立的 `--user-data-dir`，无地址栏/标签栏、独立进程）。它同样是真正的系统窗口，关窗即结束该 Edge 进程并清理临时配置目录；成功时提示为「已进入系统窗口（Edge 应用窗口）」。这样在 PowerShell/WebView2 宿主不可用的机器上功能也不会完全失效。
 - **平台**：macOS 与 Windows。Linux（或 Web 客户端）上点击会提示改用「进入独立窗口」，不会退回浏览器。Windows 缺少 **Microsoft Edge WebView2 运行时**时不再直接报错：会自动改用 Edge 应用窗口打开（见上一条兜底）。窗口标题跟随会话标题；关闭窗口即结束 Helper 进程，退出 DSH 时也会一并关闭这些窗口。
 - macOS 的 Helper 是辅助型进程，不占 Dock 图标，因此**没有最小化按钮**（避免最小化后无法从 Dock 恢复）；提供关闭、缩放和标题栏拖动。Windows 使用系统标题栏，最小化 / 最大化 / 关闭都可用。
@@ -148,6 +149,7 @@ dsh --profile web
   - Host 日志 `%TEMP%\dsh-split-workspace-system-window.log`：`opening …` / `helper exit … engine=webview2|edge code=…` / `helper trace (…)`，长 base64 令牌会脱敏。
   - Helper 自己的阶段日志 `%TEMP%\dsh-split-workspace-system-window-helper-<会话>-<时间>.log`：`helper enter`（PS 版本、STA、位数、是否交互）、`assets ok, WebView2 runtime …`、`WebView2 user data folder=…`、`window created, entering the message loop`、`exception at …` 等。它由 PowerShell 直接写文件，不依赖 stdout/stderr——**如果这个文件不存在，说明 PowerShell 根本没执行脚本**；如果存在但停在某一行，就是失败阶段。
   - 在应用里执行 `window.__dshSplitWorkspace.systemWindowLog()`（或 `GET /dsv/system-window-log`，带 `x-dsv-system-window: 1` 头）可直接拿到 Host 日志尾部，无需手动找 `%TEMP%`。
+  - **进程活着、日志停在 `WebView2 navigation requested`，但屏幕上没有窗口**：看 trace 里的 `form displayed osVisible=…`。`osVisible=False`（或 0.14.2 及更早的日志里根本没有这一行）就是 0.14.2 的隐藏窗口问题，0.14.3 已修复；也可以直接运行 `npm run check:windows-window` 复现/验证（源码仓库）；已安装的包运行 `node "%USERPROFILE%\.dsh\profiles\desktop\node_modules\dsh-split-workspace\scripts\check-windows-system-window.mjs"`。
   - 也可以绕开 DSH 直接跑 helper 自测（会打开一个连接到 `127.0.0.1:9` 的空窗口；能打开说明脚本本身正常，控制台/日志报错就是根因）：
 
   ```powershell
@@ -307,6 +309,7 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 
 - `npm run build`：重新生成 `lib/client.js`；`npm test` 会先跑 `build:check`，源码/产物不一致会失败。
 - `npm run check:anchor`：在真实 WKWebView 里验证系统窗口的菜单锚点回落（macOS 专用；CI 在 Ubuntu 上不跑）。
+- `npm run check:windows-window`：在真实 Windows 桌面上端到端验证系统窗口（用与 Host 相同的 `windowsHide: true` 启动随包 helper，要求 `form displayed osVisible=True` + WebView2 初始化完成 + 发起导航）。CI 的 `windows system window` job 每次 push 都会跑；离线测试看不到窗口，只有系统能证明它真的显示出来了。
 - 为什么不用打包器：DSH 客户端只加载一个 `<plugin>/client.js`，片段共享同一个 module-loader 闭包，按顺序拼接即可；这样发布包保持零依赖、无构建依赖。
 - 修改代码时改 `src/client/` 对应片段，然后 `npm run build`；`lib/client.js` 顶部有一行 GENERATED 标记。
 
@@ -585,6 +588,20 @@ logic stays unchanged.
   but attached (`windowsHide: true`, not detached) and the process tree is still
   torn down with `taskkill /T`. PowerShell itself is resolved by absolute path
   (`%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe`) before PATH.
+- **Windows visibility fix (0.14.3)**: 0.14.2 stopped reporting an error, but the
+  window never reached the screen (the helper trace stopped at
+  `WebView2 navigation requested` while saying `form shown visible=True`). The
+  Host hides PowerShell's console with `windowsHide: true`, which Node turns into
+  `STARTF_USESHOWWINDOW | SW_HIDE` for `CreateProcess`; Win32 applies that value to
+  the process's **first** `ShowWindow` — WinForms showing the main form. The window
+  was created, managed `Visible` was True, WebView2 initialized and navigated, all
+  invisibly. The helper now re-shows the form through user32 (the second
+  `ShowWindow` is honored), brings it to the front and logs the real state as
+  `form displayed osVisible=True`; the Host reports success only after reading
+  that line, and kills the helper plus switches to the Edge app window when the
+  window reports hidden or never appears. `beforeForceShow=False` in the trace is
+  the signature of this bug. Run `npm run check:windows-window` on Windows for an
+  end-to-end check (the CI `windows system window` job runs it on every push).
 - **Windows fallback (0.14.2)**: if the WebView2 helper still dies during startup,
   the Host automatically opens the same client in **Microsoft Edge app mode**
   (`msedge.exe --app=<authenticated URL>`, a dedicated `--user-data-dir`, its own

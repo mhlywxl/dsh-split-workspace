@@ -19,3 +19,21 @@ jobs:
         run: node test.mjs
       - name: npm package contents
         run: npm pack --dry-run
+
+  # The Windows system window is a PowerShell + WinForms + WebView2 host. Its
+  # two previous regressions (a PowerShell parse error, and an invisible window
+  # caused by windowsHide/SW_HIDE) could only be seen on Windows, so this job
+  # runs the real helper on a real desktop. Offline tests cannot prove that a
+  # window is on screen: only the OS can.
+  windows-window:
+    name: windows system window
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: the system window really opens
+        shell: pwsh
+        run: node scripts/check-windows-system-window.mjs

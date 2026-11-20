@@ -760,6 +760,51 @@ test("Windows system window: no console-less spawn, helper trace and diagnostics
   }
 });
 
+test("Windows system window: a hidden window is a failure, not a success", () => {
+  const helper = read("native/system-window.ps1");
+  // 0.14.2 regression: windowsHide reaches CreateProcess as
+  // STARTF_USESHOWWINDOW|SW_HIDE, and Win32 applies that value to the process's
+  // FIRST ShowWindow call — WinForms' own show. The form then reports
+  // Visible=True while the OS window is hidden, so the helper must force-show
+  // it through user32 and report the OS state the Host can trust.
+  for (const token of [
+    "IsWindowVisible",
+    "ShowWindow($handle, 5)",
+    "ShowWindow($handle, 1)",
+    "SetForegroundWindow",
+    "function Show-DsvWindow",
+    "function Test-DsvWindowVisible",
+    "form displayed osVisible=",
+    "beforeForceShow=",
+    "form displayed after retry osVisible=",
+  ]) {
+    assert(helper.includes(token), `missing Windows window visibility support: ${token}`);
+  }
+  const host = read("lib/index.js");
+  for (const token of [
+    "waitForWindowsWindow",
+    "form displayed[^\\n]*osVisible=True",
+    "osVisible=False",
+    "NATIVE_WINDOW_VISIBLE_MS",
+    "did not report a visible window",
+  ]) {
+    assert(host.includes(token), `missing Windows window visibility support in the Host: ${token}`);
+  }
+  // The fallback window must never be hidden by the spawn flags it inherits.
+  const edgeSpawn = host.slice(host.indexOf("function openEdgeAppWindow"));
+  assert(/windowsHide: false/u.test(edgeSpawn), "the Edge app window must not be spawned with windowsHide");
+  // "created" is not "displayed": a merely created window must not be
+  // reported as opened.
+  assert(!host.includes("|| traceText.includes(\"form shown\")"),
+    "the Host must not treat a merely created window as displayed");
+  // Offline tests cannot see a window; only Windows can.
+  assert(exists("scripts/check-windows-system-window.mjs"), "the Windows window check script must exist");
+  assert(pkg.files.includes("scripts/check-windows-system-window.mjs"),
+    "the Windows window check must ship in the npm package, so users can run it");
+  assert(read(".github/workflows/test.yml").includes("check-windows-system-window.mjs"),
+    "CI must run the real Windows system window check");
+});
+
 
 test("system window: anchor fallback places stock menus above their trigger", () => {
   const source = read("src/client/16-standalone.js");

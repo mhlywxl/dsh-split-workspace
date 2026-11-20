@@ -1,6 +1,6 @@
 {
   "name": "dsh-split-workspace",
-  "version": "0.14.2",
+  "version": "0.14.3",
   "type": "module",
   "description": "Split-screen workspace for DeepSeek Harness (DSH) Desktop: unlimited native panes, side-by-side, stacked and 2×2 grid layouts, drag to rearrange, movable floating windows, in-app independent windows, a native OS system window (macOS AppKit, Windows WebView2), a Settings page, and a performance mode for slow machines.",
   "icon": "./icon.svg",
@@ -39,7 +39,8 @@
     "native/webview2/**",
     "README.md",
     "LICENSE",
-    "THIRD-PARTY-NOTICES.md"
+    "THIRD-PARTY-NOTICES.md",
+    "scripts/check-windows-system-window.mjs"
   ],
   "dsh": {
     "bundle": {
@@ -104,6 +105,7 @@
     "test": "node scripts/build-client.mjs --check && node test.mjs",
     "check": "node scripts/build-client.mjs --check && node --check lib/client.js && node test.mjs",
     "check:anchor": "node scripts/check-wkwebview-anchor.mjs",
+    "check:windows-window": "node scripts/check-windows-system-window.mjs",
     "pack:check": "npm pack --dry-run"
   }
 }

@@ -91,6 +91,43 @@ function Exit-Dsv([int]$Code, [string]$Why) {
     [Environment]::Exit($Code)
 }
 
+# Force the form's OS window on screen. The first ShowWindow call of a process
+# created with STARTF_USESHOWWINDOW|SW_HIDE is ignored (WinForms' own show is
+# turned into SW_HIDE), every later call is honored — so this is the fix for
+# "form shown visible=True" with no window on screen.
+function Show-DsvWindow($Form) {
+    if ($Form -eq $null) { return $false }
+    try {
+        if (-not $Form.IsHandleCreated) { return $false }
+        $handle = $Form.Handle
+        $null = [Dsv.Window]::ShowWindow($handle, 5)   # SW_SHOW
+        $null = [Dsv.Window]::ShowWindow($handle, 1)   # SW_SHOWNORMAL
+        # SetForegroundWindow is routinely denied by the foreground lock when a
+        # helper is started from the background, and a window the user cannot
+        # find is indistinguishable from a closed one: flash TopMost instead.
+        try {
+            $Form.TopMost = $true
+            $Form.TopMost = $false
+        } catch { }
+        try { $Form.Activate() } catch { }
+        $null = [Dsv.Window]::SetForegroundWindow($handle)
+        return $true
+    } catch {
+        Write-DsvException 'Show-DsvWindow' $_
+        return $false
+    }
+}
+
+# The real on-screen state, as opposed to WinForms' managed Visible property.
+function Test-DsvWindowVisible($Form) {
+    try {
+        if ($Form -eq $null -or -not $Form.IsHandleCreated) { return $false }
+        return [Dsv.Window]::IsWindowVisible($Form.Handle)
+    } catch {
+        return $false
+    }
+}
+
 # The first trace line must not depend on anything that can fail: it proves
 # whether PowerShell even ran this script, which the Host needs to know.
 # NOTE: every multi-line expression below keeps its operators at the END of the
@@ -156,6 +193,24 @@ public static extern bool SetProcessDPIAware();
 '@ | Out-Null
         try { [Dsv.Dpi]::SetProcessDpiAwarenessContext([System.IntPtr]::new(-4)) | Out-Null } catch { }
         try { [Dsv.Dpi]::SetProcessDPIAware() | Out-Null } catch { }
+    } catch { }
+
+    # Window visibility. The Host starts this helper with windowsHide: true, so
+    # CreateProcess carries STARTF_USESHOWWINDOW with SW_HIDE, and Windows
+    # applies that value to the process's FIRST ShowWindow call. That call is
+    # WinForms showing the main form: the window is created, the managed
+    # Visible property is True, WebView2 initializes and navigates, and the
+    # user never sees anything (0.14.2). Later ShowWindow calls are honored,
+    # which is what Show-DsvWindow relies on.
+    try {
+        Add-Type -Namespace Dsv -Name Window -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+public static extern bool IsWindowVisible(System.IntPtr hWnd);
+[System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);
+[System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+public static extern bool SetForegroundWindow(System.IntPtr hWnd);
+'@ | Out-Null
     } catch { }
 
     # ---- helper assets ---------------------------------------------------
@@ -325,9 +380,24 @@ public static extern bool SetDllDirectory(string path);
     })
 
     $form.Add_Shown({
+        # "visible" is WinForms' managed flag: it is True even when the OS
+        # window stayed hidden, so it is only a stage marker. The authoritative
+        # state is the "form displayed osVisible=..." line below, which the
+        # Host waits for before it tells the user the window opened.
+        try { Write-DsvLog ('form shown visible=' + [string]$script:form.Visible + ' handle=' + [string]$script:form.Handle) } catch { }
+        $osVisibleBefore = Test-DsvWindowVisible $script:form
+        $null = Show-DsvWindow $script:form
+        $osVisible = Test-DsvWindowVisible $script:form
+        Write-DsvLog ('form displayed osVisible=' + [string]$osVisible + ' beforeForceShow=' + [string]$osVisibleBefore)
+        if (-not $osVisible) {
+            # Re-showing alone can be ignored after a rejected first show:
+            # toggle the form once and try again before giving up.
+            try { $script:form.Hide(); $script:form.Show() } catch { }
+            $null = Show-DsvWindow $script:form
+            Write-DsvLog ('form displayed after retry osVisible=' + [string](Test-DsvWindowVisible $script:form))
+        }
         try { $script:form.Activate() } catch { }
         try { $script:web.Focus() | Out-Null } catch { }
-        try { Write-DsvLog ('form shown visible=' + [string]$script:form.Visible + ' handle=' + [string]$script:form.Handle) } catch { }
         # The WebView2 control needs the form's window handle: initialize it
         # after the window is shown, while the message loop is running.
         try {

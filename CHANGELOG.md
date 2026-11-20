@@ -4,6 +4,22 @@
 
 This file records public releases of `dsh-split-workspace`; each version ends with a one-line English summary.
 
+## [0.14.3] - 2026-11-20
+
+### Fixed
+
+- **Windows「系统窗口」现在真的看得见了。** 0.14.2 点「进入系统窗口」不再报错，但窗口**从未出现在屏幕上**：helper 日志停在 `WebView2 navigation requested`，里面还写着 `form shown visible=True handle=…`，进程一直活着，直到用户退出窗口/DSH 才以 `code=1` 结束（被 `taskkill` 结束）。原因是隐藏控制台的方式和 Win32 的窗口显示规则冲突：
+  - Host 用 `windowsHide: true` 启动 PowerShell（否则会闪一个控制台窗口）。Node 会把它翻译成 `CreateProcess` 的 `STARTF_USESHOWWINDOW | SW_HIDE`，而 Win32 把这个值套在**该进程的第一次 `ShowWindow` 调用**上——正好是 WinForms 显示主窗体的那一次。
+  - 于是窗口确实被创建、WinForms 的托管属性 `Visible=True`、WebView2 初始化完成并导航，**但系统层面的窗口从未显示**（没有任务栏按钮、Alt+Tab 里也没有），用户看到的就是“没打开”。托管 `Visible` 与真实可见性是两回事，之前的日志只记了前者，所以看起来一切正常。
+  - 已在真实 Windows（GitHub Actions `windows-latest`，Server 2025）上做 A/B 复现：`windowsHide: true` 时 `Shown` 里 `osVisible=False`，显式再调一次 `ShowWindow(SW_SHOW)` 后变为 `True`；`windowsHide: false` 时 `Shown` 就是 `True`。
+- **helper 在 `Shown` 里强制显示窗口并报告真实可见性。** 新增 user32 P/Invoke（`IsWindowVisible` / `ShowWindow` / `SetForegroundWindow`）：显示后用第二次 `ShowWindow`（第一次已被 `SW_HIDE` 吃掉，后续调用生效）、`TopMost` 闪一下把窗口带到前台，然后记录 `form displayed osVisible=True|False beforeForceShow=…`；仍不可见时隐藏再显示并重试一次。日志里出现 `beforeForceShow=False` 就是这次 bug 的特征。
+- **Host 只在窗口真的可见后才提示“已进入系统窗口”。** 改为等待 helper trace 里的 `form displayed osVisible=True`（最多 20 秒，PowerShell 冷启动本身可能要几秒），而不是 1.5 秒内“进程没死”就当成功。看到 `osVisible=False` 或超时没有结论时，先 `taskkill` 掉这个看不见的 helper（否则它的 WebView2 浏览器进程会一直留在后台），再自动改用 Edge 应用窗口，失败详情带上 helper trace。
+- **Edge 兜底窗口不再被隐藏。** `msedge.exe` 是 GUI 进程（本来就没有控制台可隐藏），现在用 `windowsHide: false` 启动，避免同一个 `STARTF_USESHOWWINDOW|SW_HIDE` 陷阱作用在兜底窗口上。
+- **端到端自检 `npm run check:windows-window`。** 在 `127.0.0.1` 起一个页面，用与 Host **完全相同**的参数和 `windowsHide: true` 启动随包 helper，要求 helper trace 出现 `form displayed osVisible=True`、WebView2 初始化完成并导航，然后关窗；失败时打印完整 trace（退出码 3 附带“安装 WebView2 运行时”的提示）。CI 新增 `windows system window` job，每次 push 在 `windows-latest` 上跑这个脚本——离线测试无法证明“窗口在屏幕上”，只有系统能证明。
+- 文档与测试同步：`CHANGELOG` / `README` 补充这次根因、日志特征与自检命令；离线测试新增“窗口不可见必须算失败”的断言（helper 必须强制显示并报告 `osVisible`，Host 不得只凭 `form shown` 判成功，Edge 兜底不得再 `windowsHide`，CI 必须跑真实 Windows 检查）。
+
+**English summary:** Windows system windows are now actually visible. 0.14.2 no longer reported an error, but the window never reached the screen: Node's `windowsHide: true` becomes `STARTF_USESHOWWINDOW|SW_HIDE` in `CreateProcess`, and Win32 applies that value to the process's **first** `ShowWindow` — WinForms showing the main form. The window was created, managed `Visible` was True, WebView2 initialized and navigated, all inside an invisible window (no taskbar button, no Alt+Tab entry); the helper stayed alive until killed. Reproduced A/B on a real Windows runner: with `windowsHide: true` the form reports `osVisible=False` at `Shown` and becomes visible after an explicit second `ShowWindow(SW_SHOW)`; with `windowsHide: false` it is visible immediately. The helper now force-shows its form through user32, flashes it to the foreground, logs `form displayed osVisible=True|False beforeForceShow=…`, and retries once if needed. The Host waits up to 20s for that line before reporting success, kills a hidden helper and falls back to the Edge app window otherwise, and the Edge fallback is no longer spawned hidden. A new `npm run check:windows-window` starts the real helper against a local page and requires a visible window plus a working WebView2; a `windows-latest` CI job runs it on every push.
+
 ## [0.14.2] - 2026-11-19
 
 ### Fixed
