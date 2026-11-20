@@ -4,10 +4,11 @@
     // reset) and the "add split" dialog multi-selects conversations. Both are
     // rendered from the always-mounted shell.overlay seat, so neither is
     // clipped by the sidebar column nor covered by the split overlay. The
-    // session-row right-click menu contributes its two membership actions
-    // through the host's contextMenus service, so the stock menu keeps owning
-    // its presentation and the contribution disappears when this plugin
-    // unloads.
+    // session-row menus contribute the same four membership/window actions
+    // through two surfaces: the stock "⋯" session menu (every supported build,
+    // including 0.2.0/0.2.1 which have no session right-click menu) and the
+    // host's contextMenus service (0.2.2+). The stock menu keeps owning the
+    // presentation, so the contributions disappear when this plugin unloads.
     // ---------------------------------------------------------------------
 
     function usePendingSplit() {
@@ -364,12 +365,11 @@
       }
     }
 
-    /** Rows for one conversation: one "分屏插件" first-level group whose
-        second level holds the split-membership toggle and the three window
-        surfaces. Every entry is a single Enter/Exit toggle that mirrors its
-        live state: split tree / pending pick, float store, app-window runtime
-        store, and the Host-tracked native window list. */
-    function sessionMenuActions(id) {
+    /** Live membership of one conversation across the plugin's four surfaces:
+        the split tree / pending pick, floats, the in-app window, and the
+        Host-tracked native window list. Both session-menu surfaces read this,
+        so they can never disagree about Enter vs Exit. */
+    function sessionSurfaceState(id) {
       const inSplit = treeStore.leafIds().indexOf(id) !== -1;
       const pending = pendingSplitStore.has(id);
       const splitMember = inSplit || pending;
@@ -377,6 +377,45 @@
       const appWindow = appWindowSnapshot();
       const independent = appWindow !== null && appWindow.id === id;
       const nativeWindow = nativeWindowStore.has(id);
+      return { splitMember, floating, independent, nativeWindow };
+    }
+
+    /** Run one surface's Enter/Exit toggle. The state is re-read here (instead
+        of trusting the label the row rendered) so a menu resolved a moment ago
+        still acts on the live surface. */
+    function runSessionSurfaceAction(kind, id) {
+      if (!isValidSessionId(id)) return;
+      if (kind === "split") {
+        // 加入分屏 / 退出分屏 is one toggle: a member (split pane or pending
+        // pick) exits, everything else joins.
+        if (sessionSurfaceState(id).splitMember) removeSessionFromSplit(id);
+        else if (floatStore.has(id)) dockFloatToSplit(id);
+        else addSessionToSplit(id);
+        return;
+      }
+      if (kind === "float") {
+        if (floatStore.has(id)) closeFloatWindow(id);
+        else floatSession(id);
+        return;
+      }
+      if (kind === "independent") {
+        if (sessionSurfaceState(id).independent) closeAppWindowFor(id);
+        else openAppWindow(id);
+        return;
+      }
+      if (kind === "native") {
+        requestSystemWindow(id, nativeWindowStore.has(id) ? "close" : "open");
+      }
+    }
+
+    /** Rows for one conversation: one "分屏插件" first-level group whose
+        second level holds the split-membership toggle and the three window
+        surfaces. Every entry is a single Enter/Exit toggle that mirrors its
+        live state. Hosts with the `contextMenus` service (DSH 0.2.2+ only)
+        render this group in the session right-click menu; every build gets the
+        same four actions in the stock "⋯" session menu below. */
+    function sessionMenuActions(id) {
+      const { splitMember, floating, independent, nativeWindow } = sessionSurfaceState(id);
       return [
         {
           id: "split-plugin",
@@ -385,51 +424,47 @@
           separatorBefore: true,
           children: [
             {
-              // 加入分屏 / 退出分屏 is now one toggle: a member (split pane or
-              // pending pick) exits, everything else joins.
               id: "split",
               label: t(splitMember ? "exitSplit" : "menuAddToSplit"),
               icon: { key: CONTEXT_ICON_SPLIT },
-              run: () => {
-                if (splitMember) removeSessionFromSplit(id);
-                else if (floatStore.has(id)) dockFloatToSplit(id);
-                else addSessionToSplit(id);
-              },
+              run: () => runSessionSurfaceAction("split", id),
             },
             {
               id: "float",
               label: t(floating ? "menuFloatClose" : "menuFloatOpen"),
               icon: { key: CONTEXT_ICON_FLOAT },
-              run: () => {
-                if (floatStore.has(id)) closeFloatWindow(id);
-                else floatSession(id);
-              },
+              run: () => runSessionSurfaceAction("float", id),
             },
             {
               id: "independent",
               label: t(independent ? "menuIndependentClose" : "menuIndependentOpen"),
               icon: { key: CONTEXT_ICON_WINDOW },
               failureLabel: t("systemWindowFailed"),
-              run: () => {
-                if (independent) closeAppWindowFor(id);
-                else openAppWindow(id);
-              },
+              run: () => runSessionSurfaceAction("independent", id),
             },
             {
               id: "native",
               label: t(nativeWindow ? "menuNativeClose" : "menuNativeOpen"),
               icon: { key: CONTEXT_ICON_NATIVE },
               failureLabel: t("systemWindowFailed"),
-              run: () => requestSystemWindow(id, nativeWindow ? "close" : "open"),
+              run: () => runSessionSurfaceAction("native", id),
             },
           ],
         },
       ];
     }
 
-    /** Contribute 加入分屏 / 退出分屏 to the stock session context menu. The
-        service is looked up lazily: a host without ui-context-menu simply does
-        not get the rows (nothing else changes). */
+    /** True once this plugin's session right-click group is registered on a host
+        that ships the `contextMenus` service (DSH 0.2.2+). On those builds the
+        session row's "⋯" button is a context-menu trigger for the SAME popup,
+        which already renders the "分屏插件" group; the flat rows below must stay
+        hidden so the four actions are not listed twice in one menu. */
+    let sessionContextMenuActive = false;
+
+    /** Contribute the "分屏插件" group to the stock session right-click menu.
+        The service ships only from DSH 0.2.2; the same four actions reach every
+        other build through the stock "⋯" session menu below. Looked up lazily:
+        a host without the service simply does not get these rows. */
     function installSplitSessionMenu() {
       const ctx = pluginCtx;
       if (ctx === null || ctx === undefined || typeof ctx.get !== "function") return () => {};
@@ -455,6 +490,7 @@
                 return nativeWindowStore.refresh().then(() => sessionMenuActions(id)).catch(() => []);
               },
             });
+            sessionContextMenuActive = true;
           } catch (error) {
             try { console.warn(LOG_PREFIX + " could not register the session menu contribution:", String(error).slice(0, 160)); } catch {}
           }
@@ -466,9 +502,138 @@
       };
       attempt();
       return () => {
+        sessionContextMenuActive = false;
         if (timer !== 0) { try { window.clearTimeout(timer); } catch {} }
         if (dispose !== null) { try { dispose(); } catch {} }
       };
+    }
+
+    // Stock "⋯" session menu rows (hosts without a session context menu)
+    //
+    // Every supported build renders the session row's ellipsis menu from the
+    // `sidebar.workspaces.session.menu.item` list. On 0.2.0/0.2.1 builds that
+    // list is the ONLY session menu (there is no right-click menu there), so
+    // these four rows are what makes the split/float/window actions reachable.
+    // On 0.2.2+ the ellipsis button is a context-menu trigger for the SAME popup
+    // that renders this plugin's right-click "分屏插件" group; there the rows
+    // render nothing (sessionFlatRowsSuppressed) so no action appears twice in
+    // one menu. They go through the host's row primitive, which keeps the stock
+    // markup, styling, keyboard walk and focus return; a host that does not
+    // export that primitive still gets a working role="menuitem" button.
+    // -----------------------------------------------------------------------
+
+    /** The owner passes its menu-open hook through the occurrence hook context;
+        a host that does not inject one still gets a working (never-closing)
+        row, so the registration can never crash the menu. */
+    const DETACHED_MENU_OPEN_STATE = [false, () => {}];
+    function useDetachedMenuOpenState() {
+      return DETACHED_MENU_OPEN_STATE;
+    }
+    function useOwnedMenuOpenState(props) {
+      const useOpenState = props !== null && props !== undefined && typeof props.useMenuOpenState === "function"
+        ? props.useMenuOpenState
+        : useDetachedMenuOpenState;
+      return useOpenState();
+    }
+
+    /** On 0.2.2+ the "⋯" button opens the same popup that already renders the
+        plugin's right-click group, so the flat rows must render nothing — one
+        menu must never list the same four actions twice. On 0.2.0/0.2.1 there is
+        no context-menu service and the rows render normally. */
+    function sessionFlatRowsSuppressed() {
+      return sessionContextMenuActive;
+    }
+
+    /** One session-menu row through the host's row primitive. */
+    function sessionMenuRow(props) {
+      if (P !== null && P !== undefined && typeof P.MenuItemButton === "function") {
+        return h(P.MenuItemButton, props);
+      }
+      return h("button", {
+        type: "button",
+        role: "menuitem",
+        className: "dsv-session-menu-row",
+        disabled: props.disabled === true,
+        onClick: props.onSelect,
+      },
+        props.icon !== undefined && props.icon !== null ? props.icon : null,
+        h("span", null, props.children),
+      );
+    }
+
+    /** The four rows. Each subscribes only to the stores whose state its own
+        label shows, so an open menu tracks nothing it does not display. */
+    function SplitSessionMenuItem(props) {
+      const id = props !== null && props !== undefined ? props.sessionId : undefined;
+      const [, setMenuOpen] = useOwnedMenuOpenState(props);
+      useTree();
+      usePendingSplit();
+      const splitMember = isValidSessionId(id) && sessionSurfaceState(id).splitMember;
+      if (sessionFlatRowsSuppressed()) return null;
+      return sessionMenuRow({
+        separatorBefore: true,
+        icon: h(TwoPaneGlyph, { size: 14 }),
+        onSelect: () => {
+          setMenuOpen(false);
+          runSessionSurfaceAction("split", id);
+        },
+        children: t(splitMember ? "exitSplit" : "menuAddToSplit"),
+      });
+    }
+
+    function FloatSessionMenuItem(props) {
+      const id = props !== null && props !== undefined ? props.sessionId : undefined;
+      const [, setMenuOpen] = useOwnedMenuOpenState(props);
+      useFloats();
+      const floating = isValidSessionId(id) && floatStore.has(id);
+      if (sessionFlatRowsSuppressed()) return null;
+      return sessionMenuRow({
+        icon: h(FloatPaneGlyph, { size: 14 }),
+        onSelect: () => {
+          setMenuOpen(false);
+          runSessionSurfaceAction("float", id);
+        },
+        children: t(floating ? "menuFloatClose" : "menuFloatOpen"),
+      });
+    }
+
+    function IndependentSessionMenuItem(props) {
+      const id = props !== null && props !== undefined ? props.sessionId : undefined;
+      const [, setMenuOpen] = useOwnedMenuOpenState(props);
+      const runtime = useRuntime();
+      const appWindow = runtime !== null && runtime !== undefined ? runtime.appWindow : null;
+      const independent = isValidSessionId(id) && appWindow !== null && appWindow !== undefined && appWindow.id === id;
+      if (sessionFlatRowsSuppressed()) return null;
+      return sessionMenuRow({
+        icon: h(WindowGlyph, { size: 14 }),
+        onSelect: () => {
+          setMenuOpen(false);
+          runSessionSurfaceAction("independent", id);
+        },
+        children: t(independent ? "menuIndependentClose" : "menuIndependentOpen"),
+      });
+    }
+
+    function NativeSessionMenuItem(props) {
+      const id = props !== null && props !== undefined ? props.sessionId : undefined;
+      const [, setMenuOpen] = useOwnedMenuOpenState(props);
+      // The Host owns these windows; subscribing starts the store's bounded
+      // poll, and the explicit refresh makes the first open read a window that
+      // was closed outside DSH while no menu was watching.
+      React.useSyncExternalStore(nativeWindowStore.subscribe, nativeWindowStore.getSnapshot, nativeWindowStore.getSnapshot);
+      React.useEffect(() => {
+        try { nativeWindowStore.refresh(); } catch {}
+      }, []);
+      const nativeWindow = isValidSessionId(id) && nativeWindowStore.has(id);
+      if (sessionFlatRowsSuppressed()) return null;
+      return sessionMenuRow({
+        icon: h(NativeWindowGlyph, { size: 14 }),
+        onSelect: () => {
+          setMenuOpen(false);
+          runSessionSurfaceAction("native", id);
+        },
+        children: t(nativeWindow ? "menuNativeClose" : "menuNativeOpen"),
+      });
     }
 
     function SplitPickCheck({ checked }) {

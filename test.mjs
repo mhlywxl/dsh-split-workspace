@@ -155,6 +155,16 @@ test("published files exist", () => {
   assert(pkg.files.includes("docs/screenshots/*.gif"), "files must ship the drag GIF");
 });
 
+test("the plugin-list icon mirrors the split-view glyph", () => {
+  const icon = read("icon.svg");
+  assert(icon.includes('viewBox="0 0 64 64"'), "the icon must keep its 64px frame");
+  assert(icon.includes('role="img"') && icon.includes('aria-label="Split Workspace"'),
+    "the icon needs an accessible name");
+  assert(icon.includes("M32 11.6v40.8"), "the icon must draw the split divider");
+  assert(icon.includes('fill="#ffffff"'), "the icon must fill the active pane");
+  assert(!/width="17" height="17"/.test(icon), "the generic 2x2 grid artwork must be gone");
+});
+
 test("package layout follows the DSH bundle convention", () => {
   // The loader reads the `./client` export and the Host reads `apply` from the
   // package root; both artifacts live at the root, not in a build directory.
@@ -322,8 +332,71 @@ test("split launcher, pending split and session-menu integration", () => {
   assert(/aria-haspopup": "menu"/.test(client), "footer button must declare a menu popup");
   // Reset must wipe every plugin-owned storage key, not just the tree.
   assert(client.includes('SPLIT_STORAGE_PREFIX = "dsh.split-workspace."'), "reset must enumerate plugin storage keys");
-  // The session-row actions must come from the host menu service, not DOM patching.
+  // The session-row actions must come from the host menus, not DOM patching.
   assert(client.includes('target: "session"'), "session-menu contribution must target the session family");
+});
+
+test("the stock session ellipsis menu gets the four split rows on hosts without a session context menu", () => {
+  const client = read("client.js");
+  for (const token of [
+    "sidebar.workspaces.session.menu.item",
+    "SplitSessionMenuItem",
+    "FloatSessionMenuItem",
+    "IndependentSessionMenuItem",
+    "NativeSessionMenuItem",
+    "useOwnedMenuOpenState",
+    "sessionMenuRow",
+    "MenuItemButton",
+    "dsv-session-menu-row",
+    "sessionSurfaceState",
+    "runSessionSurfaceAction",
+  ]) {
+    assert(client.includes(token), `missing ellipsis-menu row support: ${token}`);
+  }
+  // Registered after the shipped rows (pin 100 … session-id 450).
+  for (const [id, order] of [
+    ["split-workspace.split", 500],
+    ["split-workspace.float", 510],
+    ["split-workspace.independent", 520],
+    ["split-workspace.native", 530],
+  ]) {
+    assert(client.includes(`["${id}", ${order},`), `missing ellipsis-menu row ${id} at order ${order}`);
+  }
+  // The row menu dismisses through the owner's hook and starts a new group.
+  assert(client.includes("separatorBefore: true"), "the first contributed row must start a new group");
+  assert(client.includes("setMenuOpen(false)"), "rows must dismiss the owner menu before acting");
+  // 0.2.0/0.2.1 have no contextMenus service, so the slot path must not need it.
+  const slotAt = client.indexOf('slots.inject("sidebar.workspaces.session.menu.item"');
+  assert(slotAt !== -1, "the ellipsis menu must be registered through its slot");
+  const slotBlock = client.slice(slotAt, client.indexOf("}, Component);", slotAt) + 14);
+  assert(!slotBlock.includes("contextMenus"), "the ellipsis-menu rows must not require the contextMenus service");
+  // On 0.2.2+ the ellipsis button opens the SAME popup that already renders the
+  // "分屏插件" group: the flag must be raised by the context-menu registration and
+  // every flat row must return nothing while it is up, so no action is listed
+  // twice in one menu.
+  assert(client.includes("let sessionContextMenuActive = false;"), "the duplicate-row guard flag must start off");
+  assert(/sessionContextMenuActive = true;/.test(client), "registering the context-menu group must suppress the flat rows");
+  const disposeAt = client.indexOf("return () => {", client.indexOf("attempt();", client.indexOf("function installSplitSessionMenu")));
+  assert(disposeAt !== -1, "the context-menu contribution must expose a disposer");
+  const disposeBlock = client.slice(disposeAt, client.indexOf("};", disposeAt));
+  assert(disposeBlock.includes("sessionContextMenuActive = false;"), "unloading must re-enable the flat rows");
+  assert(
+    (client.match(/if \(sessionFlatRowsSuppressed\(\)\) return null;/g) || []).length === 4,
+    "all four flat rows must render nothing when the context-menu group is active",
+  );
+  // Both dictionaries cover every state label used by the rows.
+  for (const key of [
+    "menuAddToSplit",
+    "exitSplit",
+    "menuFloatOpen",
+    "menuFloatClose",
+    "menuIndependentOpen",
+    "menuIndependentClose",
+    "menuNativeOpen",
+    "menuNativeClose",
+  ]) {
+    assert(client.split(key + ":").length - 1 >= 2, `locale key ${key} must exist in both dictionaries`);
+  }
 });
 
 test("locale dictionaries cover the launcher", () => {
@@ -1062,6 +1135,10 @@ test("split-view sidebar panel entry, main panel and inline picker", () => {
     "panelWarm",
     "readChipPos()",
     "writeChipPos(next)",
+    // First appearance with no remembered drag position: right edge, vertically
+    // centered (a placed chip keeps its own position).
+    "x: work.left + work.width - width - MARGIN",
+    "y: work.top + Math.round((work.height - height) / 2)",
     "panelPickTitle",
     "panelNeedTwo",
     "panelDisabledTitle",

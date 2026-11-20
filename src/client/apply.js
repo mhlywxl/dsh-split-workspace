@@ -203,11 +203,29 @@
       // conversation column starts the split.
       ctx.effect(registerDragBridge, "dsh-split-workspace: drag bridge");
 
-      // Session-row context menu contributions (加入分屏 / 退出分屏). The host's
-      // contextMenus service owns the popup; this plugin only contributes
-      // actions, so the stock menu keeps its look and the rows disappear on
-      // unload.
+      // Session-row actions on both surfaces. 0.2.2+ gets them in the stock
+      // session right-click menu through the contextMenus service; EVERY
+      // supported build (including 0.2.0/0.2.1, which have no session right-
+      // click menu) gets the same four rows in the stock "⋯" session menu via
+      // this list slot. The slot is declared by the sidebar browser, so the
+      // injection simply never runs on a host that does not ship it.
       ctx.effect(installSplitSessionMenu, "dsh-split-workspace: session menu");
+      slots.inject("sidebar.workspaces.session.menu.item", function* () {
+        const rows = [
+          ["split-workspace.split", 500, SplitSessionMenuItem],
+          ["split-workspace.float", 510, FloatSessionMenuItem],
+          ["split-workspace.independent", 520, IndependentSessionMenuItem],
+          ["split-workspace.native", 530, NativeSessionMenuItem],
+        ];
+        for (const [id, order, Component] of rows) {
+          yield slots.register({
+            name: "sidebar.workspaces.session.menu.item",
+            id,
+            order,
+            locale: "splitView",
+          }, Component);
+        }
+      });
 
       // 0.12.0: drawn icons for the session context menu's "分屏插件" group and
       // its four rows. The context menu resolves each action's icon key

@@ -186,8 +186,12 @@
           };
         }
         return {
-          x: work.left + MARGIN,
-          y: work.top + work.height - height - MARGIN,
+          // First appearance (no remembered drag position): the right edge,
+          // vertically centered in the conversation workspace — visible beside
+          // the conversation without covering the composer, and symmetric with
+          // the sidebar on the left. A user drag still wins afterwards.
+          x: work.left + work.width - width - MARGIN,
+          y: work.top + Math.round((work.height - height) / 2),
         };
       };
       const [pos, setPos] = React.useState(defaultPos);

@@ -2,7 +2,7 @@
 
 **中文（默认）** · [English](#english)
 
-把 DeepSeek Harness 的对话区拆成原生多窗格工作区——左右分屏、上下分屏、田字 2×2 或自动网格，窗口放得下多少会话就开多少。每个窗格都是真实会话，拥有自己的输入框、流式输出、停止、队列、待办、附件、`/` 命令、`ask_user_question`、审批与视图页，桌面端（`dsh-app://`）同样可用。还可以把任意会话变成可拖动、可缩放的**浮窗**，在分屏与浮窗两种模式之间来回切换；或把它放进**应用内独立窗口**（关闭 / 最小化 / 最大化 / 全屏），桌面版还可以把它放进**真正的系统窗口**（macOS 用系统 WebView、Windows 用 WebView2，独立于 DSH 主窗口，没有地址栏；Windows helper 起不来时自动退回无地址栏的 Edge 应用窗口）；并支持从侧边栏菜单和**系统设置**两个入口操作。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+把 DeepSeek Harness 的对话区拆成原生多窗格工作区——左右分屏、上下分屏、田字 2×2 或自动网格，窗口放得下多少会话就开多少。每个窗格都是真实会话，拥有自己的输入框、流式输出、停止、队列、待办、附件、`/` 命令、`ask_user_question`、审批与视图页，桌面端（`dsh-app://`）同样可用。还可以把任意会话变成可拖动、可缩放的**浮窗**，在分屏与浮窗两种模式之间来回切换；或把它放进**应用内独立窗口**（关闭 / 最小化 / 最大化 / 全屏），桌面版还可以把它放进**真正的系统窗口**（macOS 用系统 WebView、Windows 用 WebView2，独立于 DSH 主窗口，没有地址栏；Windows helper 起不来时自动退回无地址栏的 Edge 应用窗口）；侧栏底部分屏菜单、会话行尾「⋯」菜单和**系统设置**都能操作这些功能；0.2.2+ 的「⋯」和右键打开同一个会话菜单，「分屏插件」子菜单里就是这四项。版本历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 快速开始
 
@@ -13,7 +13,7 @@
 | Web（`dsh web`，浏览器打开） | 先在浏览器里试用、远程机器 | `web` profile |
 | 桌面端 DSH Desktop（`dsh-app://`） | 日常使用，支持完整桌面能力，推荐 | `desktop` profile，由桌面端管理 |
 
-- 支持 DSH 0.2.0 / 0.2.1，当前针对 0.2.1-rc.2 构建。
+- 支持 DSH 0.2.0 / 0.2.1，当前针对 0.2.1-rc.2 构建；所有支持版本都从侧栏会话行尾的「⋯」打开会话菜单——0.2.1 及更早是菜单里的四个扁平条目（这些版本没有会话右键菜单），0.2.2+ 的「⋯」和右键打开同一个菜单，四项收在「分屏插件」子菜单里。
 - 包内 `client.js` 已预构建，无 Node 原生模块、无安装脚本，客户端的 macOS / Windows / Linux 行为一致；Windows 的「系统窗口」随包附带 WebView2 SDK（约 1.1 MB，BSD-3-Clause），无需本地编译。WebView2 宿主需要机器已安装 Microsoft Edge WebView2 运行时（Windows 11 自带，Windows 10 装过新版 Edge 即有）；缺失或 helper 起不来时会自动退回 Edge 应用窗口。
 - 插件本身运行时不联网。
 
@@ -65,7 +65,7 @@ dsh --profile web
 ### 启用与验证
 
 - 打开 **设置 → 插件**，确认 `dsh-split-workspace` 已启用。DSH 0.2.x 会通过 HMR 热加载新安装的插件；如果没有出现界面，见下方「更新、重载与重启」。
-- 分屏入口：点击侧边栏底部（设置旁）的分屏图标，或把侧边栏里的会话拖到对话区。
+- 分屏入口：点击侧边栏底部（设置旁）的分屏图标，点侧栏会话行尾的「⋯」菜单，或把侧边栏里的会话拖到对话区。
 - 打开浏览器/桌面端控制台执行 `window.__dshSplitWorkspace.health()`，可看到版本、窗格数和几何状态。
 - 如果看不到分屏入口：确认插件已启用且没有报错；如果侧边栏底部的 footer 没有渲染，插件会在对话区左下角显示兜底的分屏按钮。
 - 恢复分屏后窗格标题栏的按钮点不动：0.13.1 及更早版本在桌面端会把被覆盖会话的原生窗口拖动区留在画布上方，点击被 Electron 原生层吞掉（浏览器里不会出现，所以 Web 端测不出来）。0.13.2 给窗格标题栏声明 `-webkit-app-region: no-drag` 修复。
@@ -75,31 +75,31 @@ dsh --profile web
 
 - 点击侧边栏底部的分屏图标会弹出分屏菜单：**添加分屏 / 退出分屏 / 最小化分屏 / 重置分屏**。
 - **添加分屏** 会打开多选弹框；勾选两个或更多会话后点确定即可分屏。已经处于分屏时弹框会默认勾选当前窗格的会话，可以取消勾选来移除窗格，也可以继续添加新会话，最终按勾选结果重新分屏。
-- 也可以直接在会话列表里操作：右键会话（或点行尾的「⋯」）→ **加入分屏** / **退出分屏**。还没进入分屏时，第一次「加入分屏」会先放进**待分屏**，再加一个会话才会真正进入分屏；已经在分屏时则直接加入当前分屏。反向「退出分屏」会把该会话移出分屏，只剩一个会话时自动退出分屏。
+- 也可以直接在会话列表里操作：点会话行尾的「⋯」菜单 → **加入分屏** / **退出分屏**（0.2.2+ 的「⋯」与右键打开同一个菜单，这一项在「分屏插件」子菜单里）。还没进入分屏时，第一次「加入分屏」会先放进**待分屏**，再加一个会话才会真正进入分屏；已经在分屏时则直接加入当前分屏。反向「退出分屏」会把该会话移出分屏，只剩一个会话时自动退出分屏。
 - 或者把侧边栏里的会话拖到对话区：放下的会话成为第二个窗格。
 - 分屏后，把另一个会话拖到某个窗格即可替换；也可以用窗格标题栏的分屏按钮为新窗格选择会话。
 - 拖动侧边栏会话经过窗格边缘时，窗格会预览放下后的布局，并用虚线占位标出即将加入的会话；松开即应用该布局。
 - **重置分屏** 会清空本插件在 localStorage / sessionStorage 里的分屏相关键、已保存布局、崩溃保护、最小化标记和窗格临时缓存（性能模式偏好会保留）；当分屏因为缓存或异常状态怎么都起不来时，点它即可恢复到干净状态。
-- 右键任意会话（或点行尾的「⋯」）→ **进入浮窗**，即可把该会话变成一个可自由摆放的浮窗；浮窗标题栏可以拖动、边缘可以缩放，点 **⇲ 回到分屏** 放回分屏，点 **✕** 直接关闭浮窗。同一会话不会同时出现在分屏和浮窗里：进入浮窗时会自动从分屏/待分屏中移出。
-- 右键会话 → **分屏插件**：一级菜单集中了会话的分屏与窗口操作，二级菜单包括 **加入分屏 / 退出分屏**（同一个开关，按当前状态显示）、**进入浮窗 / 退出浮窗**、**进入独立窗口 / 退出独立窗口**、**进入系统窗口 / 退出系统窗口**。每个条目都按当前状态显示“进入”或“退出”；窗口关闭（包括点窗口自身的关闭按钮）后，菜单会自动回到“进入”状态。
+- 点会话行尾的「⋯」菜单（0.2.2+ 在「分屏插件」子菜单里，也可右键打开同一菜单）→ **进入浮窗**，即可把该会话变成一个可自由摆放的浮窗；浮窗标题栏可以拖动、边缘可以缩放，点 **⇲ 回到分屏** 放回分屏，点 **✕** 直接关闭浮窗。同一会话不会同时出现在分屏和浮窗里：进入浮窗时会自动从分屏/待分屏中移出。
+- **会话菜单入口**：所有支持的 DSH 版本都从侧栏会话行尾的「⋯」打开会话菜单。0.2.1 及更早没有会话右键菜单，菜单里直接列出四个扁平条目——**加入分屏 / 退出分屏**（同一个开关，按当前状态显示）、**进入浮窗 / 退出浮窗**、**进入独立窗口 / 退出独立窗口**、**进入系统窗口 / 退出系统窗口**，排在原生条目之后并用一条分隔线分组，没有「分屏插件」分组标题。0.2.2+ 的「⋯」和右键打开的是同一个菜单，这四项收在「分屏插件」子菜单里，不再额外显示扁平条目，同一个菜单里每项只出现一次。两种情况下每个条目都按当前状态显示“进入”或“退出”；窗口关闭（包括点窗口自身的关闭按钮）后，菜单会自动回到“进入”状态。
 - **关闭窗格（标题栏 ✕）或退出分屏时，只要剩余会话少于两个就整体退出分屏**：窗格树和所有会话的分屏状态会一起清空，不会留下「菜单里显示分屏中、却没有被选中」的残留状态。只剩一个窗格的分屏不成立，所以不保留隐藏的单窗格树。
 
 ## 分屏视图菜单（左侧栏，0.12.0）
 
-- 左侧栏顶部的面板导航新增 **分屏视图** 一行，和 **插件** 同级；行首是插件的分屏图标。左下角分屏按钮、会话右键 **分屏插件** 一级菜单也用同一个图标。
+- 左侧栏顶部的面板导航新增 **分屏视图** 一行，和 **插件** 同级；行首是插件的分屏图标。左下角分屏按钮和会话菜单里的 **分屏插件** 一级菜单（0.2.1 及更早是「⋯」菜单里的扁平行）也用同一个图标。
 - 点击 **分屏视图**，主区切换到 **分屏视图面板**：已经有两个及以上窗格时，直接显示与“恢复分屏”相同的界面（窗格、分隔条、窗格工具栏都在这里）；还没有分屏时，页面里是 **添加分屏** 多选框，勾选两个或更多会话并确定后立即显示分屏界面。
 - 在面板里点左下角菜单的 **最小化分屏** 会回到会话界面；**退出分屏** 会清空窗格并返回会话。切到左侧栏的某个会话或插件面板时布局会保留，随时点回 **分屏视图** 继续。
 - **切换不再重建窗格（0.13.0）**：画布始终挂载在覆盖层里，只是在「分屏视图」、普通会话、最小化和插件面板之间显示/隐藏。隐藏后的 **20 秒内**窗格保持挂载（暖缓存），所以在「分屏视图 ⇄ 会话」「最小化 ⇄ 恢复分屏」之间来回切换时几乎瞬时，不会重新挂载每次都要重连会话和编辑器的原生对话；超过 20 秒才释放窗格树（对长时间最小化省资源）。隐藏期间画布的布局仍保留，因此恢复是可见性切换而不是整棵树重排。
-- **最小化胶囊（0.13.0）**：最小化后出现的「恢复分屏」胶囊可以拖到工作区任意位置，松手吸附到**最近的边缘**——沿边的位置随你放，不再只限四个角；位置会记住，下次最小化仍在原处。
+- **最小化胶囊（0.13.0）**：最小化后出现的「恢复分屏」胶囊**默认出现在工作区右侧、垂直居中**；也可以拖到工作区任意位置，松手吸附到**最近的边缘**——沿边的位置随你放，不再只限四个角；位置会记住，下次最小化仍在原处。
 - 左下角按钮菜单里的 **重启 DSH** 图标改为绘制的 SVG（旧版使用 U+23FB 电源符号，Windows 默认字体缺这个字形，会显示成乱码方框）；菜单、侧栏、右键菜单里的图标全部是内嵌 SVG，不依赖系统字体。
 
 ## 使用帮助（界面指引）
 
 插件内的 **分屏帮助**（菜单里的「分屏帮助」、窗格标题栏的 `?`，或设置页的「分屏帮助」）现在已经带三张界面指引截图，点击缩略图可以查看大图：
 
-| 会话右键菜单（分屏插件） | 左下角分屏按钮菜单 | 设置 → 分屏工作区 |
+| 会话行尾「⋯」或右键 → 分屏插件 | 左下角分屏按钮菜单 | 设置 → 分屏工作区 |
 | --- | --- | --- |
-| [![右键会话 → 分屏插件二级菜单](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-session-menu.png)](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-session-menu.png) | [![左下角分屏按钮菜单](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-footer-menu.png)](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-footer-menu.png) | [![设置 → 分屏工作区](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-settings.png)](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-settings.png) |
+| [![会话行尾「⋯」菜单与右键 → 分屏插件二级菜单](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-session-menu.png)](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-session-menu.png) | [![左下角分屏按钮菜单](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-footer-menu.png)](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-footer-menu.png) | [![设置 → 分屏工作区](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-settings.png)](https://raw.githubusercontent.com/mhlywxl/dsh-split-workspace/main/docs/screenshots/help-settings.png) |
 
 截图由插件 Host 从 `docs/screenshots/` 以同源路径 `/dsv/help/...` 提供，因此桌面端（`dsh-app://`）和 Web 客户端都能直接显示，无需外网。
 
@@ -107,8 +107,8 @@ dsh --profile web
 
 分屏和浮窗是同一个工作区的两种形态，可以随时互相切换：
 
-- **分屏 → 浮窗**：右键会话 → **进入浮窗**。该会话会从分屏（或待分屏）中移出，变成一个浮动窗口；窗口内仍然是这个会话的真实原生界面（输入框、流式输出、停止、队列、工具行、附件、审批、视图页都可用）。
-- **浮窗 → 分屏**：右键浮窗里的会话 → **加入分屏**（或标题栏的 **⇲ 回到分屏**）。若当前已有分屏，会话直接追加为窗格；若还没有分屏，会先进入「待分屏」，再加一个会话即开始分屏；右键 → **退出浮窗** 只关闭浮窗，不放回分屏。
+- **分屏 → 浮窗**：从会话行尾的「⋯」菜单（0.2.2+ 在「分屏插件」子菜单里，右键同）→ **进入浮窗**。该会话会从分屏（或待分屏）中移出，变成一个浮动窗口；窗口内仍然是这个会话的真实原生界面（输入框、流式输出、停止、队列、工具行、附件、审批、视图页都可用）。
+- **浮窗 → 分屏**：在侧栏该会话行尾的「⋯」菜单（0.2.2+ 在「分屏插件」子菜单里，右键同）→ **加入分屏**（或标题栏的 **⇲ 回到分屏**）。若当前已有分屏，会话直接追加为窗格；若还没有分屏，会先进入「待分屏」，再加一个会话即开始分屏；同一菜单 → **退出浮窗** 只关闭浮窗，不放回分屏。
 - **浮窗操作**：拖动标题栏移动窗口，拖动任意边缘/角落缩放，点击窗口自动置顶；位置、大小和层叠顺序会持久化，DSH 重启后浮窗仍在。窗口缩放或右侧栏开合后，浮窗会自动回到可见范围。
 - **与分屏共存**：浮窗可以浮在分屏之上，每个浮窗独立占用一个真实会话；从 2 窗格分屏抽出一个会话会结束分屏并清除另一个会话的分屏状态（浮窗 ⇲ 回分屏时进入「待分屏」，再加一个会话即可重新分屏）；3 个及以上窗格抽取时，分屏继续显示剩余窗格。
 - 浮窗和分屏窗格互斥：一个会话只会存在一种形态，避免同一会话被两个输入框同时编辑。
@@ -125,14 +125,14 @@ dsh --profile web
 
 ## 独立窗口（应用内，不依赖浏览器）
 
-- **进入独立窗口**（0.11.0 起收在「分屏插件」二级菜单；早期版本为「在独立窗口打开」）：在 DSH 应用内部打开一个只显示该会话的窗口，提供 **关闭 / 最小化 / 最大化-还原 / 全屏**；双击标题栏切换最大化，最小化后收成左下角的恢复胶囊。该会话已经在这个窗口里时，菜单显示 **退出独立窗口**；关闭窗口后菜单回到「进入独立窗口」。
+- **进入独立窗口**（会话行尾「⋯」菜单；0.2.2+ 在「分屏插件」子菜单里，右键同；0.11.0 前名为「在独立窗口打开」）：在 DSH 应用内部打开一个只显示该会话的窗口，提供 **关闭 / 最小化 / 最大化-还原 / 全屏**；双击标题栏切换最大化，最小化后收成左下角的恢复胶囊。该会话已经在这个窗口里时，菜单显示 **退出独立窗口**；关闭窗口后菜单回到「进入独立窗口」。
 - 打开时该会话会从分屏 / 浮窗 / 待分屏中移出，避免同一会话同时被两个输入框编辑；关闭独立窗口不会删除会话，它仍在侧栏里，可随时重新加入分屏。
 - **为什么不是 Electron 原生窗口？** DSH Desktop 的 Electron 主进程只保留一个应用窗口，主窗口的 `setWindowOpenHandler` 拒绝用 `window.open` 创建第二个原生窗口（http/https 只交给系统浏览器）；插件的 Host 进程是 Node 子进程，没有 Electron `BrowserWindow` API。所以 0.10.0 把这一层做成**应用内独立窗口**（不再打开浏览器、没有地址栏，窗口控制由插件自己绘制）；macOS / Windows 上另见下一节的「系统窗口」，分别用系统 WebView 与 WebView2 实现真正的独立窗口。
 - 限制：它仍在 DSH 主窗口内部（不是操作系统级第二窗口），不能拖到 DSH 窗口之外。
 
 ## 系统窗口（原生独立窗口，0.11.0 macOS / 0.14.0 Windows）
 
-- 右键会话 → **分屏插件** → **进入系统窗口**：在 macOS 或 Windows 上打开一个**真正的操作系统窗口**。它不是 DSH 主窗口里的一层浮层，可以拖到主窗口之外、单独缩放和关闭，没有地址栏。该会话的系统窗口已经打开时，菜单显示 **退出系统窗口**；在窗口里点关闭（或从菜单退出）后，菜单会自动回到「进入系统窗口」。
+- 会话行尾的「⋯」菜单 → **进入系统窗口**（0.2.2+ 该行在「分屏插件」子菜单里，右键同）：在 macOS 或 Windows 上打开一个**真正的操作系统窗口**。它不是 DSH 主窗口里的一层浮层，可以拖到主窗口之外、单独缩放和关闭，没有地址栏。该会话的系统窗口已经打开时，菜单显示 **退出系统窗口**；在窗口里点关闭（或从菜单退出）后，菜单会自动回到「进入系统窗口」。
 - 窗口内容仍然是这个会话的真实客户端：**左侧栏不显示**（会话占满窗口），**右侧栏、对话头部、输入框、视图页等都照常保留**，右上角的「打开右侧边栏」依然可用。
 - **实现方式（macOS）**：DSH 没有向插件开放 Electron `BrowserWindow`，所以插件 Host 用系统自带的 AppKit `NSWindow` + `WKWebView`（`osascript` 运行 `native/system-window.jxa`）打开窗口，并让这个 WebView 加载 Host 的**本机认证 Web 客户端**。认证 URL 由 Host 在进程内生成，只传给本机 Helper，**不会返回给渲染层**；哈希标记让同一份客户端代码在窗口内切换成「系统窗口模式」。
 - **实现方式（Windows）**：Host 用 `powershell.exe` 启动 `native/system-window.ps1`，由 PowerShell + WinForms 建窗口、内嵌 WebView2 控件加载同一份认证 Web 客户端。`native/webview2/` 随包附带 WebView2 SDK（`Microsoft.Web.WebView2.Core.dll`、`Microsoft.Web.WebView2.WinForms.dll` 与 x64/arm64 的 `WebView2Loader.dll`，BSD-3-Clause），每个窗口用 `CoreWebView2CreationProperties` 指定独立的临时 WebView2 配置目录；关窗或退出 DSH 时连同 `msedgewebview2` 进程树一起结束。
@@ -209,14 +209,14 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 
 ## 功能
 
-- **切换零重建 + 手势暖缓存（0.13.0）**：分屏画布常驻，切换「分屏视图 / 普通会话 / 最小化 / 插件面板」不再卸载重挂原生窗格；最小化胶囊可拖到任意位置并吸附最近边缘。
+- **切换零重建 + 手势暖缓存（0.13.0）**：分屏画布常驻，切换「分屏视图 / 普通会话 / 最小化 / 插件面板」不再卸载重挂原生窗格；最小化胶囊默认在右侧垂直居中，可拖到任意位置并吸附最近边缘。
 - **左侧栏「分屏视图」面板（0.12.0）**：左侧栏顶部与「插件」同级的面板入口，点击在主区打开分屏视图；已有分屏时直接显示窗格界面，没有分屏时显示添加分屏多选框，选满两个会话立即分屏。
 - **侧边栏分屏菜单**：底部分屏按钮弹出「添加分屏 / 退出分屏 / 最小化分屏 / 性能模式 / 刷新界面 / 重启 DSH / 分屏帮助 / 重置分屏」，其中退出和最小化与顶部工具栏完全一致，「分屏帮助」直接打开带截图的帮助卡片。
 - **多选添加分屏**：弹框可搜索、可多选；已分屏时默认勾选当前窗格，可取消或追加，按最终勾选结果分屏。
-- **会话右键集成**：原生右键菜单新增「分屏插件」二级菜单，其中「加入分屏 / 退出分屏」按状态显示为同一个开关；未分屏时先进入待分屏，满两个才分屏，退出到只剩一个自动退出分屏。
-- **浮窗模式**：右键会话 → 「进入浮窗」，把会话变成可拖动、可缩放的独立窗口；标题栏 ⇲ 放回分屏、✕ 关闭，浮窗位置/大小/层叠顺序持久化。
+- **会话菜单集成**：所有支持的版本都从「⋯」打开会话菜单——0.2.1 及更早是四个扁平的分屏 / 窗口条目，0.2.2+ 收在「分屏插件」子菜单里（「⋯」与右键同一菜单，每项只出现一次）；其中「加入分屏 / 退出分屏」按状态显示为同一个开关，未分屏时先进入待分屏，满两个才分屏，退出到只剩一个自动退出分屏。
+- **浮窗模式**：会话菜单 → 「进入浮窗」，把会话变成可拖动、可缩放的独立窗口；标题栏 ⇲ 放回分屏、✕ 关闭，浮窗位置/大小/层叠顺序持久化。
 - **分屏 ⇄ 浮窗双向切换**：同一会话互斥存在于一种形态；进入浮窗自动移出分屏，回到分屏自动关闭浮窗。
-- **独立窗口（应用内）**：右键会话 → 「在独立窗口打开」，在应用内单独显示该会话，提供关闭 / 最小化 / 最大化 / 全屏；不打开浏览器，打开时自动从分屏和浮窗移出。
+- **独立窗口（应用内）**：会话菜单 → 「进入独立窗口」，在应用内单独显示该会话，提供关闭 / 最小化 / 最大化 / 全屏；不打开浏览器，打开时自动从分屏和浮窗移出。
 - **系统设置入口**：除了侧边栏底部分屏菜单，**设置 → 分屏工作区** 也提供同一组操作（添加 / 退出 / 最小化 / 重置分屏、性能模式、刷新、重启 DSH、帮助和状态）。
 - **性能模式（默认开启）**：一键关闭动画、阴影、跑马灯和多个后台轮询/观察器，适合低配或 Windows 上多窗格卡顿的场景；设置持久化。性能模式下**不再渲染拖动会话时的缩略图预览**（拖入目标与放置反馈保留），可以再明显减少拖动时的 DOM/合成开销。
 - **更新提示 / 重启 DSH / 刷新界面**：检测到磁盘上的新版本时右下角提示，并提供「重启 DSH」（桌面版）或「刷新页面」（Web 版）；分屏菜单同时提供「刷新界面」与「重启 DSH」。
@@ -241,7 +241,7 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 - 没有固定窗格上限：窗口能显示多少会话就能加多少（窗格变窄时标题栏会自动紧凑）。
 - 存在分屏时，共享的原生侧边栏跟随聚焦窗格；点击会话即载入该窗格，或把会话拖到分屏区域新增/替换窗格。
 - 窗格树在刷新和重启后保留（包括手工拖出的堆叠或 L 形布局）；增删窗格会重新适配自动网格，重启不会。
-- **最小化**（工具栏或底部菜单）会隐藏分屏、显示原生单会话视图，同时保留窗格树；「恢复分屏」胶囊可以恢复（可拖到任意位置、吸附最近边缘，位置会记住）。点击其他会话会把分屏收成胶囊；打开插件/技能/设置面板时画布只是暂时隐藏（窗格保持挂载），回到会话或「分屏视图」后自动恢复，不再需要点恢复胶囊。
+- **最小化**（工具栏或底部菜单）会隐藏分屏、显示原生单会话视图，同时保留窗格树；「恢复分屏」胶囊可以恢复（默认在右侧垂直居中，也可拖到任意位置、吸附最近边缘，位置会记住）。点击其他会话会把分屏收成胶囊；打开插件/技能/设置面板时画布只是暂时隐藏（窗格保持挂载），回到会话或「分屏视图」后自动恢复，不再需要点恢复胶囊。
 - 每个窗格只有一个标题：标题由窗格标题栏负责；原生标题栏保留视图页和操作，不重复面包屑。关闭按钮是红底描边的 **✕**，不是低对比度圆点。
 - 如果安装了 `dsh-prompt-history`，它的可拖动 **会话目录 (☰)** 握把会在每个活动窗格的左边缘垂直居中显示一次。每次分屏调整（新增、关闭、重排、拖动分隔条、最大化或右侧栏推挤）都会把受影响的握把重新放回窗格左边缘与垂直中心；没有变化的窗格保留手动拖动的位置。隐藏的原生会话和非窗格视图里的副本会被隐藏，握把不再堆叠。
 - 分屏工具栏的右侧栏按钮有**两种状态**：面板关闭时是右箭头（点击打开），打开时是高亮的左箭头（点击收起）。修复监听器会在分屏拆除后接管原生的打开/收起按钮，避免过期的 sidebar-right store 吞掉点击或隐藏入口。
@@ -298,7 +298,7 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 | `src/client/` | 客户端源码，按职责命名的 18 个模块，共享一个 module-loader 闭包 |
 | `cordis.patch.yml` | Loader patch（`split-workspace` 行） |
 | `locale/en.json`、`locale/zh.json` | `meta.title` / `meta.description` / `meta.detail` |
-| `docs/DETAIL.md`、`docs/DETAIL.zh.md`、`docs/preview.svg` | 插件详情页（英/中 + 单张特性图） |
+| `docs/DETAIL.md`、`docs/DETAIL.zh.md`、`docs/preview.svg` | 插件详情页（英/中：特性图 + 会话菜单入口说明） |
 | `native/` | macOS / Windows 系统窗口 helper，以及随包的 WebView2 SDK |
 
 客户端源码的构建顺序由 `scripts/build-client.mjs` 的 `MODULES` 清单决定；`entry.js` 必须第一、`apply.js` 必须最后，其余按依赖排列：
@@ -319,7 +319,7 @@ DSH **生产版没有内置的“重启”菜单项**（开发版才有 `Restart
 | `navigation.js` | 画布/分隔条、会话选择器、键盘导航、公共 API 前置 |
 | `chrome.js` | 安全模式/帮助/提示、「分屏视图」主面板、窗口缩放冻结、更新通知、座位 |
 | `drag-bridge.js` | 未激活时的拖入分屏桥 |
-| `launcher.js` | 底部菜单、多选添加分屏弹框、会话菜单集成 |
+| `launcher.js` | 底部菜单、多选添加分屏弹框、会话菜单集成（0.2.1 及更早的原生「⋯」菜单扁平条目；0.2.2+ 的右键 `contextMenus`「分屏插件」分组） |
 | `float-window.js` | 浮窗组件与图层 |
 | `standalone.js` | 应用内独立窗口、窗口层与恢复胶囊，以及系统窗口的模式切换与请求 |
 | `apply.js` | `window.__dshSplitWorkspace` API、`apply()` 与导出 |
@@ -377,10 +377,12 @@ between the two modes at any time, move into an **in-app independent window**
 Windows — open a real **native OS window** (system WebView on macOS, WebView2 on
 Windows, with a chromeless Edge app window as the automatic Windows fallback;
 no address bar, no left sidebar) for one
-conversation. The session menu's **Split plugin** submenu holds the
-`Join split / Leave split` toggle together with all three window surfaces,
-each showing **Exit …** while that surface is open.
-Both the sidebar menu and the system **Settings** page expose the controls.
+conversation. Every supported build opens the session menu from the conversation
+row's **⋯** button: on DSH 0.2.1 and older the four actions are flat rows in
+that menu, while DSH 0.2.2+ opens the same menu from `⋯` or right-click and
+keeps them in its **Split plugin** submenu. Each row is one
+`Join/Enter … ⇄ Exit …` toggle that follows the live state, and the sidebar
+footer menu plus the system **Settings** page expose the same controls.
 Version history: [CHANGELOG.md](CHANGELOG.md).
 
 `dsh-split-workspace` turns the DeepSeek Harness conversation area into a native
@@ -413,7 +415,7 @@ layout, the unlimited pane count, rename/copy/maximize and the compact toolbar.
 | Web (`dsh web`, browser) | Trying it in a browser or on a remote machine | `web` |
 | DSH Desktop (`dsh-app://`) | Daily use with full desktop features (recommended) | `desktop`, managed by the app |
 
-- DSH 0.2.0 / 0.2.1 are supported; this build targets 0.2.1-rc.2.
+- DSH 0.2.0 / 0.2.1 are supported; this build targets 0.2.1-rc.2. Every supported build opens the session menu from the sidebar row's `⋯` button: on 0.2.1 and older the four actions are flat rows in that menu (there is no session right-click menu there), while on 0.2.2+ `⋯` and right-click open the same menu with the actions in its **Split plugin** submenu.
 - The package ships a prebuilt `client.js` with no Node native modules and no install scripts; the client behaves the same on macOS / Windows / Linux. The Windows system window ships the WebView2 SDK (about 1.1 MB, BSD-3-Clause) and only needs the Microsoft Edge WebView2 Runtime (built into Windows 11, present on Windows 10 with a current Edge).
 - The plugin itself makes no network requests at runtime.
 
@@ -462,7 +464,7 @@ dsh --profile web
 **Enable and verify**
 
 - **Settings → Plugins** must show `dsh-split-workspace` enabled. DSH 0.2.x hot-loads newly installed plugins through HMR; if the UI still does not appear, see “Updates, reload and restart”.
-- Entry points: the split icon in the sidebar footer (beside Settings), or drag a conversation from the sidebar onto the conversation column.
+- Entry points: the split icon in the sidebar footer (beside Settings), a conversation row's `⋯` menu, or dragging a conversation from the sidebar onto the conversation column.
 - Run `window.__dshSplitWorkspace.health()` in the browser/desktop console to see the version, pane count and geometry.
 - If the split entry is missing: make sure the plugin is enabled and has no error. When the stock sidebar footer does not render this plugin's action, the plugin shows a fallback split button at the conversation area's bottom-left corner.
 - Pane header buttons dead after restoring a minimized split: 0.13.1 and earlier left the covered conversation's native window-drag region above the canvas on Desktop, so Electron swallowed those clicks before the DOM (browsers ignore app-region, which is why the web build could not reproduce it). 0.13.2 declares `-webkit-app-region: no-drag` on the pane header.
@@ -471,20 +473,21 @@ dsh --profile web
 
 - Click the split icon in the sidebar footer (beside Settings) to open the split menu: **Add split / Exit split / Minimize / Reset split**.
 - **Add split** opens a multi-select dialog. Check two or more conversations and confirm. While already split, the dialog pre-selects the current panes: uncheck one to remove its pane, check more to extend, and the final selection becomes the split.
-- You can also use the session list: right-click a conversation (or its row `⋯` button) and pick **Add to split** / **Leave split**. Outside split mode the first pick is parked as a *pending split*; adding a second conversation starts the split. Inside split mode the conversation joins the current split immediately. Leaving removes it, and dropping to one conversation exits split mode.
+- You can also use the session list: open a conversation's row `⋯` menu and pick **Add to split** / **Leave split** (on DSH 0.2.2+ the same menu opens from `⋯` or right-click, and these items sit in its **Split plugin** submenu). Outside split mode the first pick is parked as a *pending split*; adding a second conversation starts the split. Inside split mode the conversation joins the current split immediately. Leaving removes it, and dropping to one conversation exits split mode.
 - Or drag a conversation from the sidebar onto the conversation column: the dropped conversation becomes the second pane.
 - Once split, drag another conversation onto a pane to replace it, or use a pane header's split buttons to choose the session for a new pane.
 - While a sidebar conversation is dragged over a pane edge, the panes lay themselves out as they will after the drop and a dashed placeholder names the incoming conversation — release to commit exactly that layout.
 - **Reset split** clears the plugin's split-related localStorage / sessionStorage keys, the saved layout, the crash guard, the minimized flag and pane caches, so a split stuck by stale state can always start again (the performance-mode preference is kept).
 - Closing a pane (header **✕**) or leaving the split via the context menu exits the split as soon as fewer than two conversations remain: the whole pane tree and every conversation's split membership are cleared, so nothing is left tagged “in split” while unselected.
-- Right-click any conversation (or its row `⋯` button) → **Enter floating window** to detach it into a movable window. Drag its title bar to move it, drag any edge to resize, use **⇲ Dock to split** to put it back into a split, or **✕** to close the float. A conversation is never hosted in both modes: entering a float removes it from the split / pending split first.
-- Right-click a conversation → **Open in independent window** to open it alone in an in-app window with close / minimize / maximize-restore / fullscreen controls — no browser is opened.
+- Open a conversation's row `⋯` menu (or right-click it on DSH 0.2.2+) → **Enter floating window** to detach it into a movable window. Drag its title bar to move it, drag any edge to resize, use **⇲ Dock to split** to put it back into a split, or **✕** to close the float. A conversation is never hosted in both modes: entering a float removes it from the split / pending split first.
+- Open a conversation's row `⋯` menu (or right-click it on DSH 0.2.2+) → **Enter independent window** to open it alone in an in-app window with close / minimize / maximize-restore / fullscreen controls — no browser is opened.
 
 ### Split view entry in the sidebar (0.12.0)
 
 - The sidebar's global-panel navigation now has a **Split view** row next to
   **Plugins**, with the plugin's split glyph. The bottom-left split button and
-  the session right-click **Split plugin** group use the same glyph.
+  the session menu's **Split plugin** group (the flat `⋯` rows on DSH 0.2.1 and
+  older) use the same glyph.
 - Clicking **Split view** switches the main column to the **Split view panel**:
   with two or more panes it shows the same canvas you get from “Restore split”
   (panes, dividers and the layout toolbar); with fewer panes it shows the
@@ -504,9 +507,10 @@ dsh --profile web
   also stays in layout, so showing it again is a visibility flip rather than a
   full re-layout of N conversations.
 - **Minimize chip (0.13.0)**: the restore chip shown while the split is
-  minimized can be dragged anywhere in the workspace and snaps to the **nearest
-  edge** on release — the position along that edge is kept, so it is no longer
-  limited to the four corners. The position persists across minimize cycles.
+  minimized appears **on the right edge, vertically centered**, by default. It
+  can be dragged anywhere in the workspace and snaps to the **nearest edge** on
+  release — the position along that edge is kept, so it is no longer limited to
+  the four corners. The position persists across minimize cycles.
 - The **Restart DSH** row now uses a drawn SVG instead of the U+23FB power
   symbol (missing from the default Windows CJK font stack, where it rendered as
   a mojibake box). Every new icon is inline SVG, so no system font is involved.
@@ -514,24 +518,26 @@ dsh --profile web
 ### Usage help (screenshots)
 
 The in-app **Split help** card now carries three annotated screenshots — the
-session right-click menu, the bottom-left split button menu, and Settings →
-Split workspace — with click-to-enlarge thumbnails. The Host serves them
-same-origin from `docs/screenshots/` under `/dsv/help/...`.
+session `⋯` menu (which carries the **Split plugin** submenu on 0.2.2+), the
+bottom-left split button menu, and Settings → Split workspace — with
+click-to-enlarge thumbnails. The Host serves them same-origin from
+`docs/screenshots/` under `/dsv/help/...`.
 
 ### Floating windows
 
 Split panes and floating windows are two shapes of the same workspace, and a
 conversation can switch between them without a reload:
 
-- **Split → float**: right-click a conversation → **Enter floating window**. It
-  leaves the split (or the pending pick) and becomes a floating window that
-  hosts the session's real native UI — composer, streaming, Stop, queue, tool
-  rows, attachments, approvals and view tabs all keep working.
-- **Float → split**: right-click the conversation inside the float → **Add to
-  split** (or use the header's **⇲ Dock to split**). With a split running, the
-  session is appended as a pane; with none, it is parked in the pending split
-  and the next pick starts the split. **Exit floating window** only closes the
-  float without docking it.
+- **Split → float**: open a conversation's row `⋯` menu (or right-click it on
+  DSH 0.2.2+) → **Enter floating window**. It leaves the split (or the pending
+  pick) and becomes a floating window that hosts the session's real native UI —
+  composer, streaming, Stop, queue, tool rows, attachments, approvals and view
+  tabs all keep working.
+- **Float → split**: open that conversation's row `⋯` menu in the sidebar (or
+  right-click it on DSH 0.2.2+) → **Add to split** (or use the header's **⇲ Dock
+  to split**). With a split running, the session is appended as a pane; with
+  none, it is parked in the pending split and the next pick starts the split.
+  **Exit floating window** only closes the float without docking it.
 - **Window behaviour**: drag the title bar to move, drag any edge/corner to
   resize, click to raise. Position, size and stacking order persist across DSH
   restarts, and every float is clamped back into the conversation column after
@@ -565,10 +571,11 @@ logic stays unchanged.
 
 ### Independent window (in-app, no browser)
 
-- Right-click a conversation → **Open in independent window**: it opens inside
-  the DSH application as a window that shows only that conversation, with
-  **close / minimize / maximize-restore / fullscreen**. Double-click the title
-  bar toggles maximize; minimizing leaves a restore chip at the bottom-left.
+- Open a conversation's row `⋯` menu (or right-click it on DSH 0.2.2+) →
+  **Enter independent window**: it opens inside the DSH application as a window
+  that shows only that conversation, with **close / minimize /
+  maximize-restore / fullscreen**. Double-click the title bar toggles maximize;
+  minimizing leaves a restore chip at the bottom-left.
 - Opening it detaches the conversation from the split / float / pending pick, so
   one conversation is never edited through two composers. Closing the window
   keeps the conversation — it stays in the sidebar and can rejoin a split.
@@ -586,8 +593,9 @@ logic stays unchanged.
 
 ### System window (native OS window, macOS + Windows)
 
-- Right-click a conversation → **Split plugin** → **Enter system window** opens a
-  **real OS window**: movable outside the DSH main window, resizable and closable
+- Open a conversation's row `⋯` menu → **Enter system window** (on DSH 0.2.2+,
+  the row sits in the menu's **Split plugin** submenu, also reachable by
+  right-click) opens a **real OS window**: movable outside the DSH main window, resizable and closable
   on its own, with no address bar. While it is open the menu shows
   **Exit system window**, and closing the window itself flips the menu back.
 - The window shows the real conversation client: **no left sidebar** (the
@@ -782,14 +790,14 @@ Since dsh-split-workspace 0.9.0:
 
 ### Features
 
-- **No-rebuild switching + warm hold (0.13.0)** — the split canvas stays mounted, so Split view / plain conversation / minimized / plugin panels no longer tear down and re-create the native panes; the minimize chip drags anywhere and snaps to the nearest edge.
+- **No-rebuild switching + warm hold (0.13.0)** — the split canvas stays mounted, so Split view / plain conversation / minimized / plugin panels no longer tear down and re-create the native panes; the minimize chip starts at the right edge, vertically centered, drags anywhere and snaps to the nearest edge.
 - **Split view sidebar entry (0.12.0)** — a global-panel row next to **Plugins** opens the split workspace in the main column: the pane canvas when a split exists, or the add-split multi-select page that opens the split as soon as two conversations are confirmed.
 - **Sidebar split menu** — the footer button opens Add / Exit / Minimize / Reset; Exit and Minimize are the same actions as the split toolbar.
 - **Multi-select add** — searchable dialog; pre-selects current panes, lets you uncheck or extend, and rebuilds the split from the final selection.
-- **Session-menu integration** — the stock right-click menu gains Add to split / Leave split. Outside split mode the first pick waits in a pending split until a second conversation is added; removing down to one pane exits the split.
-- **Floating windows** — right-click a conversation → Enter floating window turns it into a movable, resizable window; Dock to split / ✕ in its header switch it back or close it, and geometry persists.
+- **Session-menu integration** — every supported build opens the session menu from `⋯`: DSH 0.2.1 and older get the four Enter/Exit rows flat in that menu, while DSH 0.2.2+ opens the same menu from `⋯` or right-click and keeps them in its **Split plugin** submenu. Outside split mode the first pick waits in a pending split until a second conversation is added; removing down to one pane exits the split.
+- **Floating windows** — a conversation's row `⋯` menu → Enter floating window turns it into a movable, resizable window; Dock to split / ✕ in its header switch it back or close it, and geometry persists.
 - **Split ⇄ float switching** — one conversation lives in exactly one mode; entering a float detaches it from the split, docking it back closes the float.
-- **Independent window (in-app)** — right-click → Open in independent window shows the conversation alone in an in-app window with close / minimize / maximize / fullscreen; no browser, and it is detached from split and float first.
+- **Independent window (in-app)** — a conversation's row `⋯` menu → Enter independent window shows the conversation alone in an in-app window with close / minimize / maximize / fullscreen; no browser, and it is detached from split and float first.
 - **Settings entry** — besides the sidebar-footer split menu, **Settings → Split workspace** offers the same actions (add / exit / minimize / reset split, performance mode, refresh, restart DSH, help and status).
 - **Performance mode (on by default)** — one switch drops animations, shadows, shimmer and several background observers/polls for low-power or laggy Windows machines; the setting persists. In this mode the floating drag-preview thumbnail is not rendered at all (drop targets and placement feedback stay).
 - **Update chip / Restart DSH / Refresh interface** — a newer on-disk version shows a corner chip with **Restart DSH** on Desktop or **Reload page** in the Web GUI; the split menu also offers Restart DSH and Refresh interface.
@@ -839,8 +847,9 @@ Since dsh-split-workspace 0.9.0:
   pane re-fits the automatic grid; restarting does not.
 - **Minimize** (toolbar or footer menu) hides the split and shows the stock
   single-session view while keeping the pane tree. A "restore split" chip brings
-  it back (drag it anywhere — it snaps to the nearest edge and remembers its
-  position). Clicking another conversation tucks the split into the chip;
+  it back (by default on the right edge, vertically centered; drag it anywhere —
+  it snaps to the nearest edge and remembers its position). Clicking another
+  conversation tucks the split into the chip;
   opening a plugin/skills/settings panel only hides the canvas temporarily (the
   panes stay mounted) and it reappears when you return to a conversation or the
   Split view panel, so no restore chip is needed there.
@@ -947,7 +956,7 @@ the client artifact (`client.js`) live at the package root, sources live under
 | `src/client/` | Client sources: 18 responsibility-named modules sharing one module-loader closure |
 | `cordis.patch.yml` | Loader patch (the `split-workspace` row) |
 | `locale/en.json`, `locale/zh.json` | `meta.title`, `meta.description`, `meta.detail` |
-| `docs/DETAIL.md`, `docs/DETAIL.zh.md`, `docs/preview.svg` | Plugin detail page (English/Chinese plus one feature image) |
+| `docs/DETAIL.md`, `docs/DETAIL.zh.md`, `docs/preview.svg` | Plugin detail page (English/Chinese: feature image plus session-menu entry notes) |
 | `native/` | macOS / Windows system-window helpers and the vendored WebView2 SDK |
 
 `scripts/build-client.mjs` owns the load order through its `MODULES` list;
@@ -970,7 +979,7 @@ dependencies:
 | `navigation.js` | canvas/dividers, pickers, keyboard navigation, early API |
 | `chrome.js` | safe mode/help/tips, the split-view main panel, live-resize canvas freeze, update notice, seat |
 | `drag-bridge.js` | inactive drag-to-split bridge |
-| `launcher.js` | footer menu, multi-select add dialog, session menu integration |
+| `launcher.js` | footer menu, multi-select add dialog, session menus (flat stock `⋯` rows on DSH 0.2.1 and older; the `contextMenus` **Split plugin** group on 0.2.2+) |
 | `float-window.js` | floating window components/layer |
 | `standalone.js` | in-app independent window, app-window layer/chip, system-window switching |
 | `apply.js` | `window.__dshSplitWorkspace` API, `apply()` and exports |

@@ -4,6 +4,22 @@
 
 This file records public releases of `dsh-split-workspace`; each version ends with a one-line English summary.
 
+## [0.14.5] - 2026-11-20
+
+### Changed
+
+- **插件列表图标改成「分屏」标识。** `icon.svg` 从 2×2 四个方格改成和侧栏「分屏视图」入口同源的图形：圆角画布 + 垂直分隔条 + 右侧窗格实心高亮（仍为品牌蓝渐变）。在插件列表 / 市场里一眼能看出这是分屏插件，也和插件内的 `SplitViewGlyph` 保持一致。
+- **最小化胶囊默认出现在右侧、垂直居中。** 之前（没有保存过拖动位置时）默认落在工作区左下角；现在默认贴右边缘、垂直居中，既不会压住输入框，也和左侧栏形成平衡。拖动、吸附最近边缘、记住位置的行为不变；已经保存过的位置继续沿用。
+
+### Fixed
+
+- **低版本 DSH 也能从会话行的「⋯」菜单使用分屏/浮窗/窗口动作。** DSH 0.2.1 及更早的版本没有会话行右键菜单（host 的 `contextMenus` 服务从 0.2.2 才提供），而插件此前只注册右键菜单贡献，所以在 0.2.0/0.2.1 上这些动作完全不可达——这些版本能用的只有会话行尾的「⋯」菜单（它由 `sidebar.workspaces.session.menu.item` 槽渲染）。现在插件把同样的四个动作注册进这个槽：**加入分屏 / 退出分屏**（同一个开关）、**进入浮窗 / 退出浮窗**、**进入独立窗口 / 退出独立窗口**、**进入系统窗口 / 退出系统窗口**，排在内置的 pin / rename / fork / archive / session-id 之后（order 500–530），首行以分隔线开始；每行按实时状态显示「进入」或「退出」，点击后先关闭菜单再执行。
+- **0.2.2+ 不会重复列出。** 0.2.2 起会话行尾的「⋯」按钮本身就是 contextMenu 触发器，打开的正是右键菜单同一个弹层，其中已经渲染插件的「分屏插件」分组；因此右键分组注册成功后插件用 `sessionContextMenuActive` 把四个扁平条目隐藏，同一个菜单里不会出现两遍相同动作。0.2.2+ 从右键/「⋯」菜单的「分屏插件」分组进入，0.2.1 及更早直接看到这四个扁平条目。
+- **两个入口共用同一套状态与动作。** 抽取 `sessionSurfaceState()`（分屏树 / 待分屏 / 浮窗 / 应用内窗口 / Host 系统窗口）与 `runSessionSurfaceAction()`，右键分组和「⋯」四行都走它，避免两份逻辑对状态的判断不一致。行渲染使用 host 的 `MenuItemButton`，保留原生菜单样式、键盘遍历与焦点返回；宿主未导出该原语时退回普通 `role="menuitem"` 按钮。
+- **兼容性验证与文档同步。** 已对照发布的 `@deepseek-ai/dsh-client-ui-workspace` / `dsh-client-ui-context-menu` 0.2.0–0.2.2 各版本：该槽在 0.2.0 / 0.2.1 / 0.2.2 都存在，`contextMenus` 只在 0.2.2+ 出现，且 0.2.2 的「⋯」按钮与右键共用同一弹层。`npm test` 新增「⋯」行的注册、顺序、分隔线、菜单关闭、重复行抑制与双语文案的断言；帮助文案与 README / DETAIL 文档统一为「0.2.1 及更早：⋯ 菜单直接列出四项；0.2.2+：⋯ 与右键打开同一菜单，使用其中的「分屏插件」分组，不会重复」。
+
+**English summary:** The split, float, independent-window and system-window actions are now reachable on DSH 0.2.0/0.2.1 through the stock session-row "⋯" menu: the plugin registers four flat rows into the `sidebar.workspaces.session.menu.item` slot (orders 500–530, first row starting a new group). DSH 0.2.1 and older have no session right-click menu (`contextMenus` ships from 0.2.2), so those builds previously had no plugin actions in any session menu. On 0.2.2+ the "⋯" button is itself a context-menu trigger for the same popup that already renders the right-click "分屏插件" group, so the flat rows are suppressed once that group registers (`sessionContextMenuActive`) and each action appears exactly once. Both surfaces share one state/action implementation (`sessionSurfaceState` / `runSessionSurfaceAction`) and render through the host's `MenuItemButton` (plain `role="menuitem"` fallback); the slot/service/trigger behavior was verified against the published 0.2.0–0.2.2 packages. `icon.svg` now mirrors the in-app split glyph (rounded canvas + divider + filled active pane) instead of a generic 2×2 grid, and the minimize chip's default position is the right edge, vertically centered (drag, edge snap and remembered positions are unchanged).
+
 ## [0.14.4] - 2026-11-20
 
 ### Changed

@@ -837,6 +837,16 @@
     .dsv-pane-menu-item:hover { background: var(--dsw-alias-interactive-bg-hover); }
     .dsv-pane-menu-item.danger { color: #e5484d; }
     .dsv-pane-menu-item.danger:hover { background: color-mix(in srgb, #e5484d 12%, transparent); }
+    /* Fallback row for the stock "⋯" session menu on a host that does not
+       export the primitives' MenuItemButton (the normal path uses it). */
+    .dsv-session-menu-row {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      height: 28px; padding: 0 8px; border: 0; border-radius: 6px;
+      background: transparent; color: var(--dsw-alias-label-primary);
+      font: 12px/1 inherit; font-family: inherit; text-align: left; cursor: pointer;
+    }
+    .dsv-session-menu-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .dsv-session-menu-row:disabled { opacity: .5; cursor: default; }
     .dsv-pane-cwd {
       flex: 0 1 auto; min-width: 0; max-width: 130px; font-size: 11px; line-height: 16px;
       color: var(--dsw-alias-label-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

@@ -80,7 +80,7 @@ window.__ModuleLoader__.load({
     // ---------------------------------------------------------------------
 
     const PLUGIN_ID = "dsh-split-workspace";
-    const PLUGIN_VERSION = "0.14.4";
+    const PLUGIN_VERSION = "0.14.5";
     const LOG_PREFIX = "[dsh-split-workspace]";
     const TREE_KEY = "dsh.split-workspace.tree.v1";
     const OPEN_KEY = "dsh.split-workspace.open.v2";
@@ -716,14 +716,14 @@ window.__ModuleLoader__.load({
       queuedBadge: "queued",
       helpTitle: "Split view — shortcuts and help",
       helpShotsTitle: "Where things are",
-      helpShotMenu: "Right-click a conversation → Split plugin",
+      helpShotMenu: "Session menu (row ⋯ button, or right-click on DSH 0.2.2+)",
       helpShotFooter: "Split button menu (bottom-left)",
       helpShotSettings: "Settings → Split workspace",
       helpShotZoom: "Click to enlarge",
       helpOpen: "Split view help",
       helpClose: "Close",
       helpShortcuts: "Shortcuts",
-      helpGestures: "Use the sidebar-footer split menu (Add split / Exit split / Minimize / Reset split) or drag a conversation from the sidebar onto the page to start a split. Right-click a conversation for Add to split / Leave split / Enter floating window; a floating window's Dock to split button puts it back. Drag a pane by its header to move it: its slot closes and a dashed hole previews where it will land. Drag the dividers to resize. ✕ closes a pane.",
+      helpGestures: "Use the sidebar-footer split menu (Add split / Exit split / Minimize / Reset split) or drag a conversation from the sidebar onto the page to start a split. Open a conversation's session menu (its row ⋯ button, or right-click on DSH builds that have a session right-click menu) for Add to split / Leave split / Enter floating window; a floating window's Dock to split button puts it back. Drag a pane by its header to move it: its slot closes and a dashed hole previews where it will land. Drag the dividers to resize. ✕ closes a pane.",
       helpDisable: "Disable split view: run window.__dshSplitWorkspace.setEnabled(false), or set localStorage 'dsh.split-workspace.enabled.v1' to \"0\". Reset the layout: window.__dshSplitWorkspace.reset().",
       helpDiagnostics: "Diagnostics: window.__dshSplitWorkspace.health() — see the README section “Safety, recovery and diagnostics”.",
       helpRestart: "If an update or a full-restart change does not take effect, open the split menu and choose “Restart DSH” (Desktop), or quit DSH and open it again. Installed plugins are normally loaded live by DSH's HMR; the restart entry is the fallback.",
@@ -770,8 +770,8 @@ window.__ModuleLoader__.load({
       floatDocked: "Docked to the split view",
       floatClosed: "Floating window closed",
       floatHint: "Drag the title bar to move · drag an edge to resize",
-      helpFloat: "Right-click a conversation → Split plugin → Enter floating window detaches it into a movable window; Dock to split puts it back.",
-      helpIndependent: "Right-click a conversation → Split plugin → Enter independent window / Enter system window. The independent window is an app-internal single-conversation window; the system window (macOS, or Windows) is a real OS window with no left sidebar and the stock right sidebar. On Windows it uses WebView2, and falls back to a chromeless Microsoft Edge app window when the WebView2 helper cannot start.",
+      helpFloat: "Open a conversation's session menu (its row ⋯ button, or right-click) → Enter floating window detaches it into a movable window; Dock to split puts it back.",
+      helpIndependent: "Open a conversation's session menu (its row ⋯ button, or right-click) → Enter independent window / Enter system window. The independent window is an app-internal single-conversation window; the system window (macOS, or Windows) is a real OS window with no left sidebar and the stock right sidebar. On Windows it uses WebView2, and falls back to a chromeless Microsoft Edge app window when the WebView2 helper cannot start.",
       menuSystemWindow: "Open in independent window",
       systemWindowOpened: "Opened in an independent window",
       systemWindowFailed: "Could not open the system window. Use Enter independent window instead.",
@@ -887,14 +887,14 @@ window.__ModuleLoader__.load({
       queuedBadge: "条排队",
       helpTitle: "分屏视图 — 快捷键与帮助",
       helpShotsTitle: "界面指引",
-      helpShotMenu: "右键会话 → 分屏插件",
+      helpShotMenu: "会话菜单（行尾「⋯」按钮，0.2.2+ 也可右键）",
       helpShotFooter: "左下角分屏按钮菜单",
       helpShotSettings: "设置 → 分屏工作区",
       helpShotZoom: "点击查看大图",
       helpOpen: "分屏帮助",
       helpClose: "关闭",
       helpShortcuts: "快捷键",
-      helpGestures: "点击侧边栏底部的分屏按钮打开菜单（添加分屏 / 退出分屏 / 最小化分屏 / 重置分屏），或从左侧会话列表把对话拖到页面即可分屏；右键会话可加入 / 退出分屏，也可以“进入浮窗”把会话变成独立浮窗（浮窗标题栏的“回到分屏”可放回）。拖住面板标题栏可移动面板：原位置收起，虚线空位预览落点。拖动分隔条可调整大小，✕ 关闭面板。",
+      helpGestures: "点击侧边栏底部的分屏按钮打开菜单（添加分屏 / 退出分屏 / 最小化分屏 / 重置分屏），或从左侧会话列表把对话拖到页面即可分屏；打开会话行的「⋯」菜单（有会话右键菜单的 DSH 版本也可以右键）可加入 / 退出分屏，也可以“进入浮窗”把会话变成独立浮窗（浮窗标题栏的“回到分屏”可放回）。拖住面板标题栏可移动面板：原位置收起，虚线空位预览落点。拖动分隔条可调整大小，✕ 关闭面板。",
       helpDisable: "停用分屏：运行 window.__dshSplitWorkspace.setEnabled(false)，或将 localStorage 'dsh.split-workspace.enabled.v1' 设为 \"0\"。重置布局：window.__dshSplitWorkspace.reset()。",
       helpDiagnostics: "诊断：window.__dshSplitWorkspace.health() — 详见 README“安全性、恢复与诊断”。",
       helpRestart: "如果更新或需要完整重启的更改没有生效，可打开分屏菜单选择“重启 DSH”（桌面版），或退出 DSH 后重新打开。DSH 的 HMR 通常会自动加载已安装的插件；重启入口是兜底方案。",
@@ -941,8 +941,8 @@ window.__ModuleLoader__.load({
       floatDocked: "已回到分屏",
       floatClosed: "浮窗已关闭",
       floatHint: "拖动标题栏移动 · 拖动边缘调整大小",
-      helpFloat: "右键会话 → 分屏插件 → 进入浮窗，可把该会话变成独立浮窗；浮窗标题栏的“回到分屏”可放回分屏。",
-      helpIndependent: "右键会话 → 分屏插件 → 进入独立窗口 / 进入系统窗口。独立窗口在应用内单独显示该会话（关闭 / 最小化 / 最大化 / 全屏）；系统窗口（macOS，或 Windows）是真正的操作系统窗口，不显示左侧栏、保留右侧栏。Windows 上优先用 WebView2，helper 起不来时会退回无地址栏的 Edge 应用窗口。",
+      helpFloat: "打开会话行的「⋯」菜单（或右键会话）→ 进入浮窗，可把该会话变成独立浮窗；浮窗标题栏的“回到分屏”可放回分屏。",
+      helpIndependent: "打开会话行的「⋯」菜单（或右键会话）→ 进入独立窗口 / 进入系统窗口。独立窗口在应用内单独显示该会话（关闭 / 最小化 / 最大化 / 全屏）；系统窗口（macOS，或 Windows）是真正的操作系统窗口，不显示左侧栏、保留右侧栏。Windows 上优先用 WebView2，helper 起不来时会退回无地址栏的 Edge 应用窗口。",
       menuSystemWindow: "在独立窗口打开",
       systemWindowOpened: "已在独立窗口中打开",
       systemWindowFailed: "无法打开系统窗口；可改用“进入独立窗口”。",
@@ -1848,6 +1848,16 @@ window.__ModuleLoader__.load({
     .dsv-pane-menu-item:hover { background: var(--dsw-alias-interactive-bg-hover); }
     .dsv-pane-menu-item.danger { color: #e5484d; }
     .dsv-pane-menu-item.danger:hover { background: color-mix(in srgb, #e5484d 12%, transparent); }
+    /* Fallback row for the stock "⋯" session menu on a host that does not
+       export the primitives' MenuItemButton (the normal path uses it). */
+    .dsv-session-menu-row {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      height: 28px; padding: 0 8px; border: 0; border-radius: 6px;
+      background: transparent; color: var(--dsw-alias-label-primary);
+      font: 12px/1 inherit; font-family: inherit; text-align: left; cursor: pointer;
+    }
+    .dsv-session-menu-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+    .dsv-session-menu-row:disabled { opacity: .5; cursor: default; }
     .dsv-pane-cwd {
       flex: 0 1 auto; min-width: 0; max-width: 130px; font-size: 11px; line-height: 16px;
       color: var(--dsw-alias-label-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -12429,8 +12439,12 @@ window.__ModuleLoader__.load({
           };
         }
         return {
-          x: work.left + MARGIN,
-          y: work.top + work.height - height - MARGIN,
+          // First appearance (no remembered drag position): the right edge,
+          // vertically centered in the conversation workspace — visible beside
+          // the conversation without covering the composer, and symmetric with
+          // the sidebar on the left. A user drag still wins afterwards.
+          x: work.left + work.width - width - MARGIN,
+          y: work.top + Math.round((work.height - height) / 2),
         };
       };
       const [pos, setPos] = React.useState(defaultPos);
@@ -13772,10 +13786,11 @@ window.__ModuleLoader__.load({
     // reset) and the "add split" dialog multi-selects conversations. Both are
     // rendered from the always-mounted shell.overlay seat, so neither is
     // clipped by the sidebar column nor covered by the split overlay. The
-    // session-row right-click menu contributes its two membership actions
-    // through the host's contextMenus service, so the stock menu keeps owning
-    // its presentation and the contribution disappears when this plugin
-    // unloads.
+    // session-row menus contribute the same four membership/window actions
+    // through two surfaces: the stock "⋯" session menu (every supported build,
+    // including 0.2.0/0.2.1 which have no session right-click menu) and the
+    // host's contextMenus service (0.2.2+). The stock menu keeps owning the
+    // presentation, so the contributions disappear when this plugin unloads.
     // ---------------------------------------------------------------------
 
     function usePendingSplit() {
@@ -14132,12 +14147,11 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** Rows for one conversation: one "分屏插件" first-level group whose
-        second level holds the split-membership toggle and the three window
-        surfaces. Every entry is a single Enter/Exit toggle that mirrors its
-        live state: split tree / pending pick, float store, app-window runtime
-        store, and the Host-tracked native window list. */
-    function sessionMenuActions(id) {
+    /** Live membership of one conversation across the plugin's four surfaces:
+        the split tree / pending pick, floats, the in-app window, and the
+        Host-tracked native window list. Both session-menu surfaces read this,
+        so they can never disagree about Enter vs Exit. */
+    function sessionSurfaceState(id) {
       const inSplit = treeStore.leafIds().indexOf(id) !== -1;
       const pending = pendingSplitStore.has(id);
       const splitMember = inSplit || pending;
@@ -14145,6 +14159,45 @@ window.__ModuleLoader__.load({
       const appWindow = appWindowSnapshot();
       const independent = appWindow !== null && appWindow.id === id;
       const nativeWindow = nativeWindowStore.has(id);
+      return { splitMember, floating, independent, nativeWindow };
+    }
+
+    /** Run one surface's Enter/Exit toggle. The state is re-read here (instead
+        of trusting the label the row rendered) so a menu resolved a moment ago
+        still acts on the live surface. */
+    function runSessionSurfaceAction(kind, id) {
+      if (!isValidSessionId(id)) return;
+      if (kind === "split") {
+        // 加入分屏 / 退出分屏 is one toggle: a member (split pane or pending
+        // pick) exits, everything else joins.
+        if (sessionSurfaceState(id).splitMember) removeSessionFromSplit(id);
+        else if (floatStore.has(id)) dockFloatToSplit(id);
+        else addSessionToSplit(id);
+        return;
+      }
+      if (kind === "float") {
+        if (floatStore.has(id)) closeFloatWindow(id);
+        else floatSession(id);
+        return;
+      }
+      if (kind === "independent") {
+        if (sessionSurfaceState(id).independent) closeAppWindowFor(id);
+        else openAppWindow(id);
+        return;
+      }
+      if (kind === "native") {
+        requestSystemWindow(id, nativeWindowStore.has(id) ? "close" : "open");
+      }
+    }
+
+    /** Rows for one conversation: one "分屏插件" first-level group whose
+        second level holds the split-membership toggle and the three window
+        surfaces. Every entry is a single Enter/Exit toggle that mirrors its
+        live state. Hosts with the `contextMenus` service (DSH 0.2.2+ only)
+        render this group in the session right-click menu; every build gets the
+        same four actions in the stock "⋯" session menu below. */
+    function sessionMenuActions(id) {
+      const { splitMember, floating, independent, nativeWindow } = sessionSurfaceState(id);
       return [
         {
           id: "split-plugin",
@@ -14153,51 +14206,47 @@ window.__ModuleLoader__.load({
           separatorBefore: true,
           children: [
             {
-              // 加入分屏 / 退出分屏 is now one toggle: a member (split pane or
-              // pending pick) exits, everything else joins.
               id: "split",
               label: t(splitMember ? "exitSplit" : "menuAddToSplit"),
               icon: { key: CONTEXT_ICON_SPLIT },
-              run: () => {
-                if (splitMember) removeSessionFromSplit(id);
-                else if (floatStore.has(id)) dockFloatToSplit(id);
-                else addSessionToSplit(id);
-              },
+              run: () => runSessionSurfaceAction("split", id),
             },
             {
               id: "float",
               label: t(floating ? "menuFloatClose" : "menuFloatOpen"),
               icon: { key: CONTEXT_ICON_FLOAT },
-              run: () => {
-                if (floatStore.has(id)) closeFloatWindow(id);
-                else floatSession(id);
-              },
+              run: () => runSessionSurfaceAction("float", id),
             },
             {
               id: "independent",
               label: t(independent ? "menuIndependentClose" : "menuIndependentOpen"),
               icon: { key: CONTEXT_ICON_WINDOW },
               failureLabel: t("systemWindowFailed"),
-              run: () => {
-                if (independent) closeAppWindowFor(id);
-                else openAppWindow(id);
-              },
+              run: () => runSessionSurfaceAction("independent", id),
             },
             {
               id: "native",
               label: t(nativeWindow ? "menuNativeClose" : "menuNativeOpen"),
               icon: { key: CONTEXT_ICON_NATIVE },
               failureLabel: t("systemWindowFailed"),
-              run: () => requestSystemWindow(id, nativeWindow ? "close" : "open"),
+              run: () => runSessionSurfaceAction("native", id),
             },
           ],
         },
       ];
     }
 
-    /** Contribute 加入分屏 / 退出分屏 to the stock session context menu. The
-        service is looked up lazily: a host without ui-context-menu simply does
-        not get the rows (nothing else changes). */
+    /** True once this plugin's session right-click group is registered on a host
+        that ships the `contextMenus` service (DSH 0.2.2+). On those builds the
+        session row's "⋯" button is a context-menu trigger for the SAME popup,
+        which already renders the "分屏插件" group; the flat rows below must stay
+        hidden so the four actions are not listed twice in one menu. */
+    let sessionContextMenuActive = false;
+
+    /** Contribute the "分屏插件" group to the stock session right-click menu.
+        The service ships only from DSH 0.2.2; the same four actions reach every
+        other build through the stock "⋯" session menu below. Looked up lazily:
+        a host without the service simply does not get these rows. */
     function installSplitSessionMenu() {
       const ctx = pluginCtx;
       if (ctx === null || ctx === undefined || typeof ctx.get !== "function") return () => {};
@@ -14223,6 +14272,7 @@ window.__ModuleLoader__.load({
                 return nativeWindowStore.refresh().then(() => sessionMenuActions(id)).catch(() => []);
               },
             });
+            sessionContextMenuActive = true;
           } catch (error) {
             try { console.warn(LOG_PREFIX + " could not register the session menu contribution:", String(error).slice(0, 160)); } catch {}
           }
@@ -14234,9 +14284,138 @@ window.__ModuleLoader__.load({
       };
       attempt();
       return () => {
+        sessionContextMenuActive = false;
         if (timer !== 0) { try { window.clearTimeout(timer); } catch {} }
         if (dispose !== null) { try { dispose(); } catch {} }
       };
+    }
+
+    // Stock "⋯" session menu rows (hosts without a session context menu)
+    //
+    // Every supported build renders the session row's ellipsis menu from the
+    // `sidebar.workspaces.session.menu.item` list. On 0.2.0/0.2.1 builds that
+    // list is the ONLY session menu (there is no right-click menu there), so
+    // these four rows are what makes the split/float/window actions reachable.
+    // On 0.2.2+ the ellipsis button is a context-menu trigger for the SAME popup
+    // that renders this plugin's right-click "分屏插件" group; there the rows
+    // render nothing (sessionFlatRowsSuppressed) so no action appears twice in
+    // one menu. They go through the host's row primitive, which keeps the stock
+    // markup, styling, keyboard walk and focus return; a host that does not
+    // export that primitive still gets a working role="menuitem" button.
+    // -----------------------------------------------------------------------
+
+    /** The owner passes its menu-open hook through the occurrence hook context;
+        a host that does not inject one still gets a working (never-closing)
+        row, so the registration can never crash the menu. */
+    const DETACHED_MENU_OPEN_STATE = [false, () => {}];
+    function useDetachedMenuOpenState() {
+      return DETACHED_MENU_OPEN_STATE;
+    }
+    function useOwnedMenuOpenState(props) {
+      const useOpenState = props !== null && props !== undefined && typeof props.useMenuOpenState === "function"
+        ? props.useMenuOpenState
+        : useDetachedMenuOpenState;
+      return useOpenState();
+    }
+
+    /** On 0.2.2+ the "⋯" button opens the same popup that already renders the
+        plugin's right-click group, so the flat rows must render nothing — one
+        menu must never list the same four actions twice. On 0.2.0/0.2.1 there is
+        no context-menu service and the rows render normally. */
+    function sessionFlatRowsSuppressed() {
+      return sessionContextMenuActive;
+    }
+
+    /** One session-menu row through the host's row primitive. */
+    function sessionMenuRow(props) {
+      if (P !== null && P !== undefined && typeof P.MenuItemButton === "function") {
+        return h(P.MenuItemButton, props);
+      }
+      return h("button", {
+        type: "button",
+        role: "menuitem",
+        className: "dsv-session-menu-row",
+        disabled: props.disabled === true,
+        onClick: props.onSelect,
+      },
+        props.icon !== undefined && props.icon !== null ? props.icon : null,
+        h("span", null, props.children),
+      );
+    }
+
+    /** The four rows. Each subscribes only to the stores whose state its own
+        label shows, so an open menu tracks nothing it does not display. */
+    function SplitSessionMenuItem(props) {
+      const id = props !== null && props !== undefined ? props.sessionId : undefined;
+      const [, setMenuOpen] = useOwnedMenuOpenState(props);
+      useTree();
+      usePendingSplit();
+      const splitMember = isValidSessionId(id) && sessionSurfaceState(id).splitMember;
+      if (sessionFlatRowsSuppressed()) return null;
+      return sessionMenuRow({
+        separatorBefore: true,
+        icon: h(TwoPaneGlyph, { size: 14 }),
+        onSelect: () => {
+          setMenuOpen(false);
+          runSessionSurfaceAction("split", id);
+        },
+        children: t(splitMember ? "exitSplit" : "menuAddToSplit"),
+      });
+    }
+
+    function FloatSessionMenuItem(props) {
+      const id = props !== null && props !== undefined ? props.sessionId : undefined;
+      const [, setMenuOpen] = useOwnedMenuOpenState(props);
+      useFloats();
+      const floating = isValidSessionId(id) && floatStore.has(id);
+      if (sessionFlatRowsSuppressed()) return null;
+      return sessionMenuRow({
+        icon: h(FloatPaneGlyph, { size: 14 }),
+        onSelect: () => {
+          setMenuOpen(false);
+          runSessionSurfaceAction("float", id);
+        },
+        children: t(floating ? "menuFloatClose" : "menuFloatOpen"),
+      });
+    }
+
+    function IndependentSessionMenuItem(props) {
+      const id = props !== null && props !== undefined ? props.sessionId : undefined;
+      const [, setMenuOpen] = useOwnedMenuOpenState(props);
+      const runtime = useRuntime();
+      const appWindow = runtime !== null && runtime !== undefined ? runtime.appWindow : null;
+      const independent = isValidSessionId(id) && appWindow !== null && appWindow !== undefined && appWindow.id === id;
+      if (sessionFlatRowsSuppressed()) return null;
+      return sessionMenuRow({
+        icon: h(WindowGlyph, { size: 14 }),
+        onSelect: () => {
+          setMenuOpen(false);
+          runSessionSurfaceAction("independent", id);
+        },
+        children: t(independent ? "menuIndependentClose" : "menuIndependentOpen"),
+      });
+    }
+
+    function NativeSessionMenuItem(props) {
+      const id = props !== null && props !== undefined ? props.sessionId : undefined;
+      const [, setMenuOpen] = useOwnedMenuOpenState(props);
+      // The Host owns these windows; subscribing starts the store's bounded
+      // poll, and the explicit refresh makes the first open read a window that
+      // was closed outside DSH while no menu was watching.
+      React.useSyncExternalStore(nativeWindowStore.subscribe, nativeWindowStore.getSnapshot, nativeWindowStore.getSnapshot);
+      React.useEffect(() => {
+        try { nativeWindowStore.refresh(); } catch {}
+      }, []);
+      const nativeWindow = isValidSessionId(id) && nativeWindowStore.has(id);
+      if (sessionFlatRowsSuppressed()) return null;
+      return sessionMenuRow({
+        icon: h(NativeWindowGlyph, { size: 14 }),
+        onSelect: () => {
+          setMenuOpen(false);
+          runSessionSurfaceAction("native", id);
+        },
+        children: t(nativeWindow ? "menuNativeClose" : "menuNativeOpen"),
+      });
     }
 
     function SplitPickCheck({ checked }) {
@@ -15693,11 +15872,29 @@ window.__ModuleLoader__.load({
       // conversation column starts the split.
       ctx.effect(registerDragBridge, "dsh-split-workspace: drag bridge");
 
-      // Session-row context menu contributions (加入分屏 / 退出分屏). The host's
-      // contextMenus service owns the popup; this plugin only contributes
-      // actions, so the stock menu keeps its look and the rows disappear on
-      // unload.
+      // Session-row actions on both surfaces. 0.2.2+ gets them in the stock
+      // session right-click menu through the contextMenus service; EVERY
+      // supported build (including 0.2.0/0.2.1, which have no session right-
+      // click menu) gets the same four rows in the stock "⋯" session menu via
+      // this list slot. The slot is declared by the sidebar browser, so the
+      // injection simply never runs on a host that does not ship it.
       ctx.effect(installSplitSessionMenu, "dsh-split-workspace: session menu");
+      slots.inject("sidebar.workspaces.session.menu.item", function* () {
+        const rows = [
+          ["split-workspace.split", 500, SplitSessionMenuItem],
+          ["split-workspace.float", 510, FloatSessionMenuItem],
+          ["split-workspace.independent", 520, IndependentSessionMenuItem],
+          ["split-workspace.native", 530, NativeSessionMenuItem],
+        ];
+        for (const [id, order, Component] of rows) {
+          yield slots.register({
+            name: "sidebar.workspaces.session.menu.item",
+            id,
+            order,
+            locale: "splitView",
+          }, Component);
+        }
+      });
 
       // 0.12.0: drawn icons for the session context menu's "分屏插件" group and
       // its four rows. The context menu resolves each action's icon key

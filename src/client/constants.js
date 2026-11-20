@@ -3,7 +3,7 @@
     // ---------------------------------------------------------------------
 
     const PLUGIN_ID = "dsh-split-workspace";
-    const PLUGIN_VERSION = "0.14.4";
+    const PLUGIN_VERSION = "0.14.5";
     const LOG_PREFIX = "[dsh-split-workspace]";
     const TREE_KEY = "dsh.split-workspace.tree.v1";
     const OPEN_KEY = "dsh.split-workspace.open.v2";
@@ -639,14 +639,14 @@
       queuedBadge: "queued",
       helpTitle: "Split view — shortcuts and help",
       helpShotsTitle: "Where things are",
-      helpShotMenu: "Right-click a conversation → Split plugin",
+      helpShotMenu: "Session menu (row ⋯ button, or right-click on DSH 0.2.2+)",
       helpShotFooter: "Split button menu (bottom-left)",
       helpShotSettings: "Settings → Split workspace",
       helpShotZoom: "Click to enlarge",
       helpOpen: "Split view help",
       helpClose: "Close",
       helpShortcuts: "Shortcuts",
-      helpGestures: "Use the sidebar-footer split menu (Add split / Exit split / Minimize / Reset split) or drag a conversation from the sidebar onto the page to start a split. Right-click a conversation for Add to split / Leave split / Enter floating window; a floating window's Dock to split button puts it back. Drag a pane by its header to move it: its slot closes and a dashed hole previews where it will land. Drag the dividers to resize. ✕ closes a pane.",
+      helpGestures: "Use the sidebar-footer split menu (Add split / Exit split / Minimize / Reset split) or drag a conversation from the sidebar onto the page to start a split. Open a conversation's session menu (its row ⋯ button, or right-click on DSH builds that have a session right-click menu) for Add to split / Leave split / Enter floating window; a floating window's Dock to split button puts it back. Drag a pane by its header to move it: its slot closes and a dashed hole previews where it will land. Drag the dividers to resize. ✕ closes a pane.",
       helpDisable: "Disable split view: run window.__dshSplitWorkspace.setEnabled(false), or set localStorage 'dsh.split-workspace.enabled.v1' to \"0\". Reset the layout: window.__dshSplitWorkspace.reset().",
       helpDiagnostics: "Diagnostics: window.__dshSplitWorkspace.health() — see the README section “Safety, recovery and diagnostics”.",
       helpRestart: "If an update or a full-restart change does not take effect, open the split menu and choose “Restart DSH” (Desktop), or quit DSH and open it again. Installed plugins are normally loaded live by DSH's HMR; the restart entry is the fallback.",
@@ -693,8 +693,8 @@
       floatDocked: "Docked to the split view",
       floatClosed: "Floating window closed",
       floatHint: "Drag the title bar to move · drag an edge to resize",
-      helpFloat: "Right-click a conversation → Split plugin → Enter floating window detaches it into a movable window; Dock to split puts it back.",
-      helpIndependent: "Right-click a conversation → Split plugin → Enter independent window / Enter system window. The independent window is an app-internal single-conversation window; the system window (macOS, or Windows) is a real OS window with no left sidebar and the stock right sidebar. On Windows it uses WebView2, and falls back to a chromeless Microsoft Edge app window when the WebView2 helper cannot start.",
+      helpFloat: "Open a conversation's session menu (its row ⋯ button, or right-click) → Enter floating window detaches it into a movable window; Dock to split puts it back.",
+      helpIndependent: "Open a conversation's session menu (its row ⋯ button, or right-click) → Enter independent window / Enter system window. The independent window is an app-internal single-conversation window; the system window (macOS, or Windows) is a real OS window with no left sidebar and the stock right sidebar. On Windows it uses WebView2, and falls back to a chromeless Microsoft Edge app window when the WebView2 helper cannot start.",
       menuSystemWindow: "Open in independent window",
       systemWindowOpened: "Opened in an independent window",
       systemWindowFailed: "Could not open the system window. Use Enter independent window instead.",
@@ -810,14 +810,14 @@
       queuedBadge: "条排队",
       helpTitle: "分屏视图 — 快捷键与帮助",
       helpShotsTitle: "界面指引",
-      helpShotMenu: "右键会话 → 分屏插件",
+      helpShotMenu: "会话菜单（行尾「⋯」按钮，0.2.2+ 也可右键）",
       helpShotFooter: "左下角分屏按钮菜单",
       helpShotSettings: "设置 → 分屏工作区",
       helpShotZoom: "点击查看大图",
       helpOpen: "分屏帮助",
       helpClose: "关闭",
       helpShortcuts: "快捷键",
-      helpGestures: "点击侧边栏底部的分屏按钮打开菜单（添加分屏 / 退出分屏 / 最小化分屏 / 重置分屏），或从左侧会话列表把对话拖到页面即可分屏；右键会话可加入 / 退出分屏，也可以“进入浮窗”把会话变成独立浮窗（浮窗标题栏的“回到分屏”可放回）。拖住面板标题栏可移动面板：原位置收起，虚线空位预览落点。拖动分隔条可调整大小，✕ 关闭面板。",
+      helpGestures: "点击侧边栏底部的分屏按钮打开菜单（添加分屏 / 退出分屏 / 最小化分屏 / 重置分屏），或从左侧会话列表把对话拖到页面即可分屏；打开会话行的「⋯」菜单（有会话右键菜单的 DSH 版本也可以右键）可加入 / 退出分屏，也可以“进入浮窗”把会话变成独立浮窗（浮窗标题栏的“回到分屏”可放回）。拖住面板标题栏可移动面板：原位置收起，虚线空位预览落点。拖动分隔条可调整大小，✕ 关闭面板。",
       helpDisable: "停用分屏：运行 window.__dshSplitWorkspace.setEnabled(false)，或将 localStorage 'dsh.split-workspace.enabled.v1' 设为 \"0\"。重置布局：window.__dshSplitWorkspace.reset()。",
       helpDiagnostics: "诊断：window.__dshSplitWorkspace.health() — 详见 README“安全性、恢复与诊断”。",
       helpRestart: "如果更新或需要完整重启的更改没有生效，可打开分屏菜单选择“重启 DSH”（桌面版），或退出 DSH 后重新打开。DSH 的 HMR 通常会自动加载已安装的插件；重启入口是兜底方案。",
@@ -864,8 +864,8 @@
       floatDocked: "已回到分屏",
       floatClosed: "浮窗已关闭",
       floatHint: "拖动标题栏移动 · 拖动边缘调整大小",
-      helpFloat: "右键会话 → 分屏插件 → 进入浮窗，可把该会话变成独立浮窗；浮窗标题栏的“回到分屏”可放回分屏。",
-      helpIndependent: "右键会话 → 分屏插件 → 进入独立窗口 / 进入系统窗口。独立窗口在应用内单独显示该会话（关闭 / 最小化 / 最大化 / 全屏）；系统窗口（macOS，或 Windows）是真正的操作系统窗口，不显示左侧栏、保留右侧栏。Windows 上优先用 WebView2，helper 起不来时会退回无地址栏的 Edge 应用窗口。",
+      helpFloat: "打开会话行的「⋯」菜单（或右键会话）→ 进入浮窗，可把该会话变成独立浮窗；浮窗标题栏的“回到分屏”可放回分屏。",
+      helpIndependent: "打开会话行的「⋯」菜单（或右键会话）→ 进入独立窗口 / 进入系统窗口。独立窗口在应用内单独显示该会话（关闭 / 最小化 / 最大化 / 全屏）；系统窗口（macOS，或 Windows）是真正的操作系统窗口，不显示左侧栏、保留右侧栏。Windows 上优先用 WebView2，helper 起不来时会退回无地址栏的 Edge 应用窗口。",
       menuSystemWindow: "在独立窗口打开",
       systemWindowOpened: "已在独立窗口中打开",
       systemWindowFailed: "无法打开系统窗口；可改用“进入独立窗口”。",
