@@ -1057,6 +1057,8 @@ MIT. See `THIRD-PARTY-NOTICES.md`.
 
 - **[DSH 声音与提醒](https://github.com/mhlywxl/dsh-coding-sound)**（`dsh-coding-sound`）— 用声音盯住 Agent：按输出文字演奏生成式背景音乐，完成、等待审批与工具执行各有可配置的提示音。
   <br />*[DSH coding sound](https://github.com/mhlywxl/dsh-coding-sound)* (`dsh-coding-sound`) — Generative background music and notification chimes for DeepSeek Harness: hear whether the agent is thinking, still working, or waiting for you.
+- **[DSH 自动思考档位](https://github.com/mhlywxl/dsh-think-effort)**（`dsh-think-effort`）— 为 DeepSeek 等推理模型补上思考档位：模型选择器里的 Auto 落到声明默认档，会话标题与压缩等廉价调用自动用低档。
+  <br />*[DSH think effort](https://github.com/mhlywxl/dsh-think-effort)* (`dsh-think-effort`) — Declarative thinking depths for DeepSeek in DSH: Auto resolves to the declared default, and cheap host-owned calls drop to Low.
 
 ## 支持作者 · Support the author
 
